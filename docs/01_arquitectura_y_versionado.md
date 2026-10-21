@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v0.5.10-alpha`
+- **Versión Actual**: `v1.0.0-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,14 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.0-alpha` (2026-10-21)
+- **Hito Mayor: Desacoplamiento de Descompresión Masiva ZIP en Web Worker (`src/workers/zip-worker.js`)**:
+  - **Procesamiento en Hilo Secundario**: La descompresión de archivos ZIP masivos (con cientos de fotografías y millones de registros GPS de BiTaVi Android) se trasladó por completo a un Web Worker modular (`src/workers/zip-worker.js`).
+  - **Rendimiento a 60 FPS sin Congelamientos**: Se eliminó el bloqueo del hilo principal del navegador durante la carga de respaldos grandes; el visor cartográfico y las animaciones del HUD responden con total fluidez.
+  - **Transferencia Zero-Copy de Memoria**: Las imágenes extraídas se transfieren entre el Worker y el hilo principal utilizando `transferable ArrayBuffers`, evitando clonación o consumo duplicado de memoria RAM.
+  - **Mecanismo de Contingencia (*Fallback*)**: Si el navegador o entorno no soporta Workers, `ZipBackupHandler` conmuta automáticamente y sin interrupciones a la ejecución local en el hilo principal.
+  - **Hito de Versión Mayor (`X.Y.Z`)**: Tras alcanzar `v0.5.10-alpha`, según la regla del sistema el dígito principal avanza a `v1.0.0-alpha`.
 
 ### `v0.5.10-alpha` (2026-10-21)
 - **Empaquetado Multiplataforma Autónomo (Windows / Linux) y Preparación de Repositorio GitHub Privado**:

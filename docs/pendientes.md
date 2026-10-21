@@ -1,7 +1,7 @@
 # 📋 BiTaVi PC - Hoja de Ruta y Tareas Pendientes
 
 > **Documento Oficial de Seguimiento y Próximas Fases**  
-> **Versión Actual del Sistema**: `v0.5.10-alpha`  
+> **Versión Actual del Sistema**: `v1.0.0-alpha`  
 > **Última Actualización**: 21 de octubre de 2026  
 > **Plataforma**: Aplicación Web / Desktop para PC (Windows y Linux)
 
@@ -10,6 +10,15 @@
 ## 1. Estado Actual del Sistema (Lo Completado Recientemente)
 
 Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades críticas:
+- ✅ **Desacoplamiento de Descompresión ZIP Masiva a Web Worker (`v1.0.0-alpha`)**:
+  - Web Worker dedicado (`src/workers/zip-worker.js`) para procesar `JSZip` fuera del hilo principal.
+  - Transferencia Zero-Copy (`transferable ArrayBuffers`) de fotografías para no saturar memoria RAM.
+  - Mantenimiento estricto de 60 FPS en el visor cartográfico y HUD interactivo durante la carga de backups pesados.
+  - Fallback automático al hilo principal en navegadores sin soporte de Workers.
+- ✅ **Empaquetado Multiplataforma y Repositorio Privado (`v0.5.10-alpha`)**:
+  - Script automatizado de distribución para Windows y Linux (`npm run package`).
+  - Flujo de GitHub Actions (`.github/workflows/build.yml`) para compilaciones en la nube.
+  - Blindaje estricto de `.gitignore` excluyendo backups personales y celulares.
 - ✅ **Blindaje del Script de Inicio de Windows (`v0.5.4-alpha`)**:
   - Corrección de sintaxis batch para `cmd.exe` (eliminación de paréntesis conflictivos y adopción de saltos seguros con `goto`).
   - Detección preventiva de Node.js en el sistema.
@@ -33,14 +42,7 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
 
 ## 2. Tareas Pendientes Priorizadas (Próximas Fases)
 
-### 🔹 Prioridad 1: Desacoplamiento de Descompresión ZIP Masiva a Web Worker
-- **Situación actual**: La descompresión de archivos `.zip` grandes (>100 MB con cientos de fotos de alta resolución y millones de puntos GPS) mediante `JSZip` corre en el hilo principal del DOM, pudiendo provocar pequeñas congelaciones visuales momentáneas.
-- **Solución técnica planificada**:
-  - Crear un Web Worker en `src/workers/zip-worker.js`.
-  - Transferir el `ArrayBuffer` del archivo ZIP al Worker sin copiar memoria (`postMessage(buffer, [buffer])`).
-  - Procesar la descompresión y lectura de `puntos.txt` en segundo plano, devolviendo al hilo principal los datos ya estructurados para renderizado a 60 FPS estables.
-
-### 🔹 Prioridad 2: Modo Reproductor / Simulador Táctico de Viaje (Playback de Ruta)
+### 🔹 Prioridad 1: Modo Reproductor / Simulador Táctico de Viaje (Playback de Ruta)
 - **Objetivo**: Permitir al usuario revivir la expedición mediante una animación temporal sobre el mapa.
 - **Funcionalidades a incorporar**:
   - Barra de control de reproducción en el HUD: `[▶ Reproducir]`, `[⏸ Pausar]`, `[⏹ Reiniciar]`.
@@ -48,13 +50,19 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
   - Marcador móvil con rumbo dinámico que avanza sobre el trazado mostrando telemetría en vivo (velocidad instantánea, altitud, fecha y hora).
   - Resaltado automático de fotografías y waypoints al transitar cerca del punto geográfico donde fueron tomadas.
 
-### 🔹 Prioridad 3: Exportación a Formato KML / KMZ para Google Earth 3D
+### 🔹 Prioridad 2: Exportación a Formato KML / KMZ para Google Earth 3D
 - **Objetivo**: Extender la capacidad de exportación para entornos tridimensionales de escritorio.
 - **Detalles técnicos**:
   - Generador de XML KML estándar con estilos de trazado tácticos (`<LineString>`, `<altitudeMode>absolute</altitudeMode>`).
   - Empaquetado KMZ comprimido con las miniaturas de las fotografías incrustadas en los popups para visualización tridimensional en Google Earth Desktop.
 
-### 🔹 Prioridad 4: Suite de Pruebas Unitarias Automatizadas (Vitest)
+### 🔹 Prioridad 3: Suite de Pruebas Unitarias Automatizadas (Vitest)
+- **Objetivo**: Extender la capacidad de exportación para entornos tridimensionales de escritorio.
+- **Detalles técnicos**:
+  - Generador de XML KML estándar con estilos de trazado tácticos (`<LineString>`, `<altitudeMode>absolute</altitudeMode>`).
+  - Empaquetado KMZ comprimido con las miniaturas de las fotografías incrustadas en los popups para visualización tridimensional en Google Earth Desktop.
+
+### 🔹 Prioridad 3: Suite de Pruebas Unitarias Automatizadas (Vitest)
 - **Situación actual**: Solo existe el validador sintáctico estático `scripts/check.js`.
 - **Solución técnica planificada**:
   - Configurar `vitest` en el entorno de desarrollo.
@@ -64,14 +72,14 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
     - `bitavi-native-parser.js`: parseo de datos Android (`rutas.txt`, `puntos.txt`, `marcadores.txt`, `favoritos.txt`).
     - `search.js`: indexación y búsqueda insensible a acentos.
 
-### 🔹 Prioridad 5: Soporte para Mapas 100% Offline (Tile Caching / PWA)
+### 🔹 Prioridad 4: Soporte para Mapas 100% Offline (Tile Caching / PWA)
 - **Objetivo**: Permitir el uso del visor en computadoras portátiles en campo sin conexión a internet ni cobertura de red.
 - **Solución técnica planificada**:
   - Configurar un Service Worker con estrategia Cache-First para teselas cartográficas descargadas.
   - Botón táctico para "Descargar cuadrante cartográfico" del viaje planificado.
   - Soporte para importar archivos locales de mapas raster/vectoriales compactos (`.mbtiles`).
 
-### 🔹 Prioridad 6: Empaquetado de Escritorio Autónomo (Tauri)
+### 🔹 Prioridad 5: Empaquetado de Escritorio Autónomo (Tauri)
 - **Objetivo**: Generar binarios independientes sin necesidad de abrir un navegador web:
   - Windows: instalador `.exe` o versión portable ligera.
   - Linux: paquete `.AppImage` o `.deb`.

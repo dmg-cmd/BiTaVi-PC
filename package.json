@@ -1,6 +1,6 @@
 {
   "name": "bitavi-pc",
-  "version": "0.5.10-alpha",
+  "version": "1.0.0-alpha",
   "description": "Bitácora Táctica de Viaje - Visor Cartográfico y Rutas para PC",
   "type": "module",
   "scripts": {
