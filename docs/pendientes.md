@@ -1,7 +1,7 @@
 # 📋 BiTaVi PC - Hoja de Ruta y Tareas Pendientes
 
 > **Documento Oficial de Seguimiento y Próximas Fases**  
-> **Versión Actual del Sistema**: `v1.0.1-alpha`  
+> **Versión Actual del Sistema**: `v1.0.2-alpha`  
 > **Última Actualización**: 21 de octubre de 2026  
 > **Plataforma**: Aplicación Web / Desktop para PC (Windows y Linux)
 
@@ -10,6 +10,11 @@
 ## 1. Estado Actual del Sistema (Lo Completado Recientemente)
 
 Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades críticas:
+- ✅ **Exportación a Formatos KML y KMZ para Google Earth 3D (`v1.0.2-alpha`)**:
+  - Generador estándar KML 2.2 XML (`src/components/kml-kmz-exporter.js`) con teselación (`<tessellate>1</tessellate>`) y adaptación tridimensional a relieve.
+  - Conversión cromática exacta entre hexadecimal CSS y el estándar inverso KML `aabbggrr`.
+  - Empaquetador masivo KMZ autocontenido con fotos incrustadas en `files/` y popups HTML interactivos.
+  - Botones en panel de rutas (`[🌍 KML 3D]`, `[🌐 KMZ 3D (con Fotos)]`) y en galería fotográfica (`[🌐 Exportar Fotos a KMZ 3D]`).
 - ✅ **Modo Reproductor y Simulador Táctico de Viaje (`v1.0.1-alpha`)**:
   - Motor de animación desacoplado `RoutePlaybackSimulator` (`src/components/playback.js`) a 60 FPS con `requestAnimationFrame`.
   - Marcador móvil vectorial con rotación por rumbo dinámico esférico (*bearing* de 0° a 360°) y traducción a puntos cardinales.
@@ -48,13 +53,7 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
 
 ## 2. Tareas Pendientes Priorizadas (Próximas Fases)
 
-### 🔹 Prioridad 1: Exportación a Formato KML / KMZ para Google Earth 3D
-- **Objetivo**: Extender la capacidad de exportación para entornos tridimensionales de escritorio.
-- **Detalles técnicos**:
-  - Generador de XML KML estándar con estilos de trazado tácticos (`<LineString>`, `<altitudeMode>absolute</altitudeMode>`).
-  - Empaquetado KMZ comprimido con las miniaturas de las fotografías incrustadas en los popups para visualización tridimensional en Google Earth Desktop.
-
-### 🔹 Prioridad 2: Suite de Pruebas Unitarias Automatizadas (Vitest)
+### 🔹 Prioridad 1: Suite de Pruebas Unitarias Automatizadas (Vitest)
 - **Situación actual**: Solo existe el validador sintáctico estático `scripts/check.js`.
 - **Solución técnica planificada**:
   - Configurar `vitest` en el entorno de desarrollo.
@@ -62,16 +61,18 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
     - `gpx-parser.js`: cálculo de distancias Haversine, soporte de tracks y waypoints, generación de XML GPX 1.1 válido.
     - `folder-loader.js`: inspección de Magic Bytes (`PK`) y filtrado estricto de archivos de sistema.
     - `bitavi-native-parser.js`: parseo de datos Android (`rutas.txt`, `puntos.txt`, `marcadores.txt`, `favoritos.txt`).
+    - `kml-kmz-exporter.js`: conversión cromática a `aabbggrr`, generación de KML 2.2 y empaquetado KMZ.
+    - `playback.js`: cálculo de rumbos esféricos (*bearing*) y avance temporal.
     - `search.js`: indexación y búsqueda insensible a acentos.
 
-### 🔹 Prioridad 3: Soporte para Mapas 100% Offline (Tile Caching / PWA)
+### 🔹 Prioridad 2: Soporte para Mapas 100% Offline (Tile Caching / PWA)
 - **Objetivo**: Permitir el uso del visor en computadoras portátiles en campo sin conexión a internet ni cobertura de red.
 - **Solución técnica planificada**:
   - Configurar un Service Worker con estrategia Cache-First para teselas cartográficas descargadas.
   - Botón táctico para "Descargar cuadrante cartográfico" del viaje planificado.
   - Soporte para importar archivos locales de mapas raster/vectoriales compactos (`.mbtiles`).
 
-### 🔹 Prioridad 4: Empaquetado de Escritorio Autónomo (Tauri)
+### 🔹 Prioridad 3: Empaquetado de Escritorio Autónomo (Tauri)
 - **Objetivo**: Generar binarios independientes sin necesidad de abrir un navegador web:
   - Windows: instalador `.exe` o versión portable ligera.
   - Linux: paquete `.AppImage` o `.deb`.

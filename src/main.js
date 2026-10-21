@@ -8,6 +8,7 @@ import { GoogleDriveConnector } from './components/drive-connector.js';
 import { FolderBackupLoader } from './components/folder-loader.js';
 import { BiTaViNativeParser } from './components/bitavi-native-parser.js';
 import { RoutePlaybackSimulator } from './components/playback.js';
+import { exportToKml, exportToKmz } from './components/kml-kmz-exporter.js';
 import { ShareCard } from './components/share-card.js';
 import { BiTaViStorage } from './components/storage.js';
 import { APP_VERSION } from './version.js';
@@ -102,6 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const routeFileAddInput = document.getElementById('route-file-add-input');
   const btnSaveSelectedRoutes = document.getElementById('btn-save-selected-routes');
   const btnSaveSelectedZip = document.getElementById('btn-save-selected-zip');
+  const btnSaveSelectedKml = document.getElementById('btn-save-selected-kml');
+  const btnSaveSelectedKmz = document.getElementById('btn-save-selected-kmz');
+  const btnExportKmzPhotos = document.getElementById('btn-export-kmz-photos');
   const statDistance = document.getElementById('stat-distance');
   const statPoints = document.getElementById('stat-points');
   const statElevation = document.getElementById('stat-elevation');
@@ -840,6 +844,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       cursorCoords.textContent = `✅ ${selectedRoutes.length} rutas guardadas por separado como archivos .GPX.`;
+    }
+  }
+
+  // Recopila datos de rutas elegidas, waypoints y fotos para exportación a Google Earth 3D
+  function collectExportData() {
+    const selectedBoxes = Array.from(routeSelector.querySelectorAll('.route-export-box:checked'));
+    const selectedIds = selectedBoxes.map(b => b.dataset.routeId);
+    let selectedRoutes = nativeParser.routes.filter(r => selectedIds.includes(r.id));
+    if (selectedRoutes.length === 0 && nativeParser.routes.length > 0) {
+      selectedRoutes = nativeParser.routes;
+    }
+    const colorMap = nativeParser.getRouteColorMap();
+
+    const routes = selectedRoutes.map(r => ({
+      id: r.id,
+      name: r.name,
+      color: colorMap.get(r.id) || '#00f0ff',
+      distanceKm: r.distanceKm,
+      points: nativeParser.pointsByRoute.get(r.id) || []
+    }));
+
+    const waypoints = [
+      ...(nativeParser.markers || []).map(m => ({ name: m.name || 'Marcador', lat: m.lat, lng: m.lng, desc: m.desc })),
+      ...(nativeParser.favorites || []).map(f => ({ name: f.name || 'Favorito', lat: f.lat, lng: f.lng, desc: f.desc }))
+    ];
+
+    const photos = photoHandler.photos || [];
+
+    let title = 'Expedición BiTaVi';
+    if (routes.length === 1) title = routes[0].name;
+    else if (routes.length > 1) title = `${routes.length} Rutas BiTaVi`;
+
+    return { routes, waypoints, photos, title };
+  }
+
+  // Exporta rutas y waypoints a KML para Google Earth
+  function saveSelectedKml() {
+    const data = collectExportData();
+    if (data.routes.length === 0 && data.waypoints.length === 0 && data.photos.length === 0) {
+      alert('⚠️ No hay rutas, waypoints ni fotos cargadas para exportar a KML.');
+      return;
+    }
+    const safeName = sanitizeFilename(data.title, 'expedicion_bitavi_3d');
+    exportToKml(data, `${safeName}.kml`);
+    cursorCoords.textContent = `🌍 Expedición exportada a ${safeName}.kml para Google Earth 3D`;
+  }
+
+  // Exporta rutas, waypoints y fotos incrustadas a KMZ para Google Earth 3D
+  async function saveSelectedKmz() {
+    const data = collectExportData();
+    if (data.routes.length === 0 && data.waypoints.length === 0 && data.photos.length === 0) {
+      alert('⚠️ No hay datos disponibles para empaquetar en KMZ.');
+      return;
+    }
+    const safeName = sanitizeFilename(data.title, 'expedicion_bitavi_3d');
+    cursorCoords.textContent = `🌐 Generando paquete KMZ para Google Earth 3D...`;
+    try {
+      await exportToKmz(data, `${safeName}.kmz`, (p) => {
+        updateProgress(p.percent, p.phase, 'Empaquetando KMZ 3D...');
+      });
+      cursorCoords.textContent = `✅ Archivo KMZ 3D "${safeName}.kmz" generado con éxito.`;
+    } catch (err) {
+      console.error('[KMZ Error]', err);
+      alert(`Error al generar KMZ: ${err.message}`);
     }
   }
 
@@ -1780,6 +1848,7 @@ document.addEventListener('DOMContentLoaded', () => {
       photosList.classList.add('hidden');
       photosList.innerHTML = '';
       btnShareCard.classList.add('hidden');
+      if (btnExportKmzPhotos) btnExportKmzPhotos.classList.add('hidden');
       if (photosRailVisible) { photoHandler.hidePhotoMarkers(); nativeParser.hideDataMarkers(); buildPhotoRail(); drawConnectors(); }
       return;
     }
@@ -1791,8 +1860,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const hasGeo = photos.some(p => p.lat !== null && p.lng !== null && !isNaN(p.lat) && !isNaN(p.lng));
     if (hasGeo) {
       btnShareCard.classList.remove('hidden');
+      if (btnExportKmzPhotos) btnExportKmzPhotos.classList.remove('hidden');
     } else {
       btnShareCard.classList.add('hidden');
+      if (btnExportKmzPhotos) btnExportKmzPhotos.classList.add('hidden');
     }
 
     photos.forEach(photo => {
@@ -1871,6 +1942,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnSaveSelectedZip) {
     btnSaveSelectedZip.addEventListener('click', () => saveSelectedRoutes(true));
+  }
+  if (btnSaveSelectedKml) {
+    btnSaveSelectedKml.addEventListener('click', saveSelectedKml);
+  }
+  if (btnSaveSelectedKmz) {
+    btnSaveSelectedKmz.addEventListener('click', saveSelectedKmz);
   }
 
   // --- Persistencia y Restauración de Sesión con IndexedDB (v0.4.8-alpha) ---
@@ -2088,6 +2165,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const subtitle = geoPhotos[0] && geoPhotos[0].date ? geoPhotos[0].date : '';
     shareCard.open({ photos: geoPhotos, routeGroups, title, subtitle });
   });
+
+  if (btnExportKmzPhotos) {
+    btnExportKmzPhotos.addEventListener('click', async () => {
+      const geoPhotos = photoHandler.photos.filter(p =>
+        p.lat !== null && p.lng !== null && !isNaN(p.lat) && !isNaN(p.lng)
+      );
+      if (geoPhotos.length === 0) {
+        alert('No hay fotos geolocalizadas para exportar.');
+        return;
+      }
+      cursorCoords.textContent = `🌐 Exportando ${geoPhotos.length} fotos a KMZ 3D...`;
+      try {
+        await exportToKmz(
+          {
+            routes: [],
+            waypoints: [],
+            photos: geoPhotos,
+            title: `Fotografías de Campaña (${geoPhotos.length})`
+          },
+          'fotos_bitavi_3d.kmz',
+          (p) => updateProgress(p.percent, p.phase, 'Generando KMZ de fotos...')
+        );
+        cursorCoords.textContent = `✅ ${geoPhotos.length} fotos exportadas con éxito a fotos_bitavi_3d.kmz`;
+      } catch (err) {
+        console.error('[KMZ Photos Error]', err);
+        alert(`Error al generar KMZ de fotos: ${err.message}`);
+      }
+    });
+  }
 
   btnTogglePhotos.addEventListener('click', () => {
     togglePhotosRail();

@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.1-alpha`
+- **Versión Actual**: `v1.0.2-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,20 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.2-alpha` (2026-10-21)
+- **Exportación a Formatos KML y KMZ 3D para Google Earth (`src/components/kml-kmz-exporter.js`)**:
+  - **Generador KML 2.2 XML Estándar (`generateKmlXml`)**:
+    - Polilíneas con teselación (`<tessellate>1</tessellate>`), extrusión y modo `<altitudeMode>clampToGround</altitudeMode>` adaptadas a la topografía tridimensional.
+    - Conversión cromática exacta entre hexadecimal CSS y el estándar KML inverso `aabbggrr` (`hexToKmlColor`).
+    - Marcadores de waypoints y favoritos con iconos nativos de Google Earth.
+  - **Empaquetador Autocontenido KMZ con Fotos (`exportToKmz`)**:
+    - Generación de paquetes comprimidos KMZ con `doc.kml` en la raíz y subcarpeta `files/` que aloja las fotos geolocalizadas reales.
+    - Popups descriptivos en HTML con previsualización fotográfica, coordenadas, altitud y marcas de tiempo de captura.
+  - **Integración en Interfaz**:
+    - Botones dedicados en la barra de exportación de rutas: `[🌍 KML 3D]` y `[🌐 KMZ 3D (con Fotos)]`.
+    - Botón de exportación masiva en la galería fotográfica: `[🌐 Exportar Fotos a KMZ 3D]`.
+  - **Documentación Técnica Oficial**: Se documentó la especificación técnica en [`docs/16_exportador_kml_kmz_google_earth_3d.md`](16_exportador_kml_kmz_google_earth_3d.md).
 
 ### `v1.0.1-alpha` (2026-10-21)
 - **Modo Reproductor y Simulador Táctico de Viaje (Playback de Ruta)**:

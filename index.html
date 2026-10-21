@@ -21,7 +21,7 @@
           <div class="logo-text">
             <div class="title-row">
               <h1 class="app-title">BiTaVi</h1>
-              <span class="version-tag">v1.0.1-alpha</span>
+              <span class="version-tag">v1.0.2-alpha</span>
             </div>
             <span class="app-subtitle">BITÁCORA TÁCTICA DE VIAJE</span>
           </div>
@@ -223,6 +223,8 @@
               <div id="route-export-bar" class="route-export-bar" style="margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;">
                 <button type="button" id="btn-save-selected-routes" class="tactical-btn-sm accent" style="flex: 1; padding: 4px 6px; font-size: 0.66rem;" title="Descargar las rutas elegidas en archivos GPX independientes con sus nombres">💾 Guardar Elegidas (.GPX)</button>
                 <button type="button" id="btn-save-selected-zip" class="tactical-btn-sm" style="padding: 4px 6px; font-size: 0.66rem;" title="Empaquetar todas las rutas elegidas separadas en un archivo ZIP">📦 ZIP Separadas</button>
+                <button type="button" id="btn-save-selected-kml" class="tactical-btn-sm" style="padding: 4px 6px; font-size: 0.66rem;" title="Exportar rutas seleccionadas y waypoints a KML para Google Earth">🌍 KML 3D</button>
+                <button type="button" id="btn-save-selected-kmz" class="tactical-btn-sm" style="flex: 1; padding: 4px 6px; font-size: 0.66rem; border-color: var(--accent-cyan);" title="Exportar paquete KMZ con rutas y fotos para Google Earth 3D">🌐 KMZ 3D (con Fotos)</button>
               </div>
             </div>
 
@@ -269,6 +271,7 @@
             </div>
             <div id="photos-list" class="photos-list hidden"></div>
             <button id="btn-share-card" class="tactical-btn-sm accent full-width hidden" title="Generar tarjeta táctica para compartir">🛰️ Compartir Tarjeta</button>
+            <button id="btn-export-kmz-photos" class="tactical-btn-sm full-width hidden" style="margin-top: 4px; border-color: var(--accent-cyan);" title="Exportar fotos geolocalizadas en paquete KMZ para Google Earth 3D">🌐 Exportar Fotos a KMZ 3D</button>
           </section>
 
           <!-- Accordion 5: ZIP Backup Structural Analysis -->
