@@ -1,12 +1,14 @@
 {
   "name": "bitavi-pc",
-  "version": "1.0.2-alpha",
+  "version": "1.0.3-alpha",
   "description": "Bitácora Táctica de Viaje - Visor Cartográfico y Rutas para PC",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "package": "node scripts/package.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview",
     "serve": "node scripts/serve.js",
     "lint": "node scripts/check.js",
@@ -18,7 +20,9 @@
     "leaflet": "^1.9.4"
   },
   "devDependencies": {
-    "vite": "^8.2.2"
+    "happy-dom": "^21.0.4",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.5"
   },
   "optionalDependencies": {
     "@rolldown/binding-linux-x64-gnu": "^1.2.6",

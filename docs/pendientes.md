@@ -1,7 +1,7 @@
 # 📋 BiTaVi PC - Hoja de Ruta y Tareas Pendientes
 
 > **Documento Oficial de Seguimiento y Próximas Fases**  
-> **Versión Actual del Sistema**: `v1.0.2-alpha`  
+> **Versión Actual del Sistema**: `v1.0.3-alpha`  
 > **Última Actualización**: 21 de octubre de 2026  
 > **Plataforma**: Aplicación Web / Desktop para PC (Windows y Linux)
 
@@ -10,6 +10,10 @@
 ## 1. Estado Actual del Sistema (Lo Completado Recientemente)
 
 Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades críticas:
+- ✅ **Suite de Pruebas Unitarias Automatizadas con Vitest (`v1.0.3-alpha`)**:
+  - Configuración de Vitest con entorno `happy-dom` (`vitest.config.js`).
+  - 19 pruebas unitarias automatizadas en 6 suites: trigonometría esférica de rumbo y Haversine (`playback.js`), conversión cromática a `aabbggrr` y generador KML 2.2 (`kml-kmz-exporter.js`), saneamiento de nombres de archivo y GPX 1.1 (`gpx-parser.js`), Magic Bytes `PK` y filtro de archivos basura (`folder-loader.js`), normalización y búsqueda insensible a tildes (`search.js`), y deserialización de estructuras Android (`bitavi-native-parser.js`).
+  - Scripts `npm test` y `npm run test:watch`, con integración en GitHub Actions.
 - ✅ **Exportación a Formatos KML y KMZ para Google Earth 3D (`v1.0.2-alpha`)**:
   - Generador estándar KML 2.2 XML (`src/components/kml-kmz-exporter.js`) con teselación (`<tessellate>1</tessellate>`) y adaptación tridimensional a relieve.
   - Conversión cromática exacta entre hexadecimal CSS y el estándar inverso KML `aabbggrr`.
@@ -53,26 +57,14 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
 
 ## 2. Tareas Pendientes Priorizadas (Próximas Fases)
 
-### 🔹 Prioridad 1: Suite de Pruebas Unitarias Automatizadas (Vitest)
-- **Situación actual**: Solo existe el validador sintáctico estático `scripts/check.js`.
-- **Solución técnica planificada**:
-  - Configurar `vitest` en el entorno de desarrollo.
-  - Diseñar tests unitarios automatizados para:
-    - `gpx-parser.js`: cálculo de distancias Haversine, soporte de tracks y waypoints, generación de XML GPX 1.1 válido.
-    - `folder-loader.js`: inspección de Magic Bytes (`PK`) y filtrado estricto de archivos de sistema.
-    - `bitavi-native-parser.js`: parseo de datos Android (`rutas.txt`, `puntos.txt`, `marcadores.txt`, `favoritos.txt`).
-    - `kml-kmz-exporter.js`: conversión cromática a `aabbggrr`, generación de KML 2.2 y empaquetado KMZ.
-    - `playback.js`: cálculo de rumbos esféricos (*bearing*) y avance temporal.
-    - `search.js`: indexación y búsqueda insensible a acentos.
-
-### 🔹 Prioridad 2: Soporte para Mapas 100% Offline (Tile Caching / PWA)
+### 🔹 Prioridad 1: Soporte para Mapas 100% Offline (Tile Caching / PWA)
 - **Objetivo**: Permitir el uso del visor en computadoras portátiles en campo sin conexión a internet ni cobertura de red.
 - **Solución técnica planificada**:
   - Configurar un Service Worker con estrategia Cache-First para teselas cartográficas descargadas.
   - Botón táctico para "Descargar cuadrante cartográfico" del viaje planificado.
   - Soporte para importar archivos locales de mapas raster/vectoriales compactos (`.mbtiles`).
 
-### 🔹 Prioridad 3: Empaquetado de Escritorio Autónomo (Tauri)
+### 🔹 Prioridad 2: Empaquetado de Escritorio Autónomo (Tauri)
 - **Objetivo**: Generar binarios independientes sin necesidad de abrir un navegador web:
   - Windows: instalador `.exe` o versión portable ligera.
   - Linux: paquete `.AppImage` o `.deb`.

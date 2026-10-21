@@ -31,6 +31,9 @@ jobs:
       - name: Verificación de sintaxis JS
         run: npm run lint
 
+      - name: Pruebas unitarias automatizadas (Vitest)
+        run: npm test
+
       - name: Compilación de producción (Vite)
         run: npm run build
 

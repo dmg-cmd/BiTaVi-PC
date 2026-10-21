@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.2-alpha`
+- **Versión Actual**: `v1.0.3-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,21 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.3-alpha` (2026-10-21)
+- **Suite de Pruebas Unitarias Automatizadas con Vitest (`tests/`)**:
+  - **Integración de Vitest & happy-dom (`vitest.config.js`)**:
+    - Configuración del motor de pruebas ultrarrápido Vitest con entorno DOM simulado `happy-dom` para soporte sin fisuras de APIs web y Leaflet.
+    - Scripts npm agregados: `npm test` (`vitest run`) y `npm run test:watch`.
+    - Integración en el flujo de CI de GitHub Actions (`.github/workflows/build.yml`).
+  - **Batería Exhaustiva de Pruebas (19 tests en 6 suites)**:
+    - `tests/navigation-math.test.js`: Validación matemática de la fórmula de Haversine, cálculo de rumbos esféricos (*bearing* de 0° a 360°), traducción a rumbos cardinales (`N`, `NE`, `E`, etc.) y formateo de duración.
+    - `tests/kml-kmz.test.js`: Escape de caracteres XML, conversión cromática estricta `#RRGGBB` -> `aabbggrr` y estructura de documento KML 2.2 / KMZ.
+    - `tests/gpx-tools.test.js`: Saneamiento de nombres de archivo prohibidos en Windows/Linux y generación de estándar XML GPX 1.1 con telemetría.
+    - `tests/folder-loader.test.js`: Detección binaria de Magic Bytes (`PK` y `<xml`), filtrado estricto de archivos de sistema (`.DS_Store`, `desktop.ini`, `Thumbs.db`) y clasificación taxonómica de archivos de expedición.
+    - `tests/search.test.js`: Normalización sin diacríticos ni acentos e indexación offline de rutas, fotos y marcadores.
+    - `tests/native-parser.test.js`: Interpretación y deserialización de estructuras nativas de BiTaVi Android (`rutas.txt`, `puntos.txt`, `marcadores.txt`).
+  - **Documentación Técnica Oficial**: Se documentó la arquitectura de pruebas en [`docs/17_suite_pruebas_unitarias_vitest.md`](17_suite_pruebas_unitarias_vitest.md).
 
 ### `v1.0.2-alpha` (2026-10-21)
 - **Exportación a Formatos KML y KMZ 3D para Google Earth (`src/components/kml-kmz-exporter.js`)**:
