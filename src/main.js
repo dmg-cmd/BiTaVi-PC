@@ -9,6 +9,7 @@ import { FolderBackupLoader } from './components/folder-loader.js';
 import { BiTaViNativeParser } from './components/bitavi-native-parser.js';
 import { RoutePlaybackSimulator } from './components/playback.js';
 import { exportToKml, exportToKmz } from './components/kml-kmz-exporter.js';
+import { OfflineMapManager } from './components/offline-map-manager.js';
 import { ShareCard } from './components/share-card.js';
 import { BiTaViStorage } from './components/storage.js';
 import { APP_VERSION } from './version.js';
@@ -106,6 +107,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSaveSelectedKml = document.getElementById('btn-save-selected-kml');
   const btnSaveSelectedKmz = document.getElementById('btn-save-selected-kmz');
   const btnExportKmzPhotos = document.getElementById('btn-export-kmz-photos');
+
+  // Offline Maps Elements (v1.0.4-alpha)
+  const connectivityIndicator = document.getElementById('connectivity-indicator');
+  const connectivityText = document.getElementById('connectivity-text');
+  const offlineCacheCount = document.getElementById('offline-cache-count');
+  const btnDownloadOfflineMap = document.getElementById('btn-download-offline-map');
+  const btnClearOfflineCache = document.getElementById('btn-clear-offline-cache');
   const statDistance = document.getElementById('stat-distance');
   const statPoints = document.getElementById('stat-points');
   const statElevation = document.getElementById('stat-elevation');
@@ -361,6 +369,84 @@ document.addEventListener('DOMContentLoaded', () => {
         const speed = parseFloat(btn.dataset.speed) || 1;
         playbackSimulator.setSpeed(speed);
       });
+    });
+  }
+
+  // 4. Inicializar Administrador de Mapas 100% Offline (v1.0.4-alpha)
+  const offlineMapManager = new OfflineMapManager();
+  offlineMapManager.registerServiceWorker();
+
+  async function refreshOfflineStats() {
+    const stats = await offlineMapManager.getCacheStats();
+    if (offlineCacheCount) {
+      offlineCacheCount.textContent = `${stats.tileCount} teselas (~${stats.estimatedSizeMb} MB)`;
+    }
+  }
+  refreshOfflineStats();
+
+  offlineMapManager.onConnectivityChange = ({ online }) => {
+    if (connectivityIndicator) {
+      connectivityIndicator.className = online ? 'status-indicator-dot online' : 'status-indicator-dot warning';
+    }
+    if (connectivityText) {
+      connectivityText.textContent = online ? 'MODO EN LÍNEA (ONLINE)' : '📡 MODO CAMPO (OFFLINE)';
+    }
+    if (!online) {
+      cursorCoords.innerHTML = '📡 <span style="color:var(--accent-amber);font-weight:700;">Modo Campo Offline Activo:</span> Navegando con teselas en caché local.';
+    } else {
+      cursorCoords.textContent = '🛰️ Conexión restaurada a los servidores cartográficos.';
+    }
+  };
+
+  if (btnDownloadOfflineMap) {
+    btnDownloadOfflineMap.addEventListener('click', async () => {
+      if (!mapInstance?.map) return;
+      const b = mapInstance.map.getBounds();
+      const currentZoom = mapInstance.map.getZoom();
+      const zooms = [currentZoom, Math.min(18, currentZoom + 1), Math.min(18, currentZoom + 2)];
+
+      const bounds = {
+        north: b.getNorth(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        west: b.getWest()
+      };
+
+      const template = mapInstance.getCurrentTileUrlTemplate();
+
+      try {
+        btnDownloadOfflineMap.disabled = true;
+        btnDownloadOfflineMap.textContent = '⏳ Descargando...';
+
+        const result = await offlineMapManager.downloadAreaTiles({
+          bounds,
+          zoomLevels: zooms,
+          layerUrlTemplate: template,
+          onProgress: (p) => {
+            updateProgress(p.percent, p.phase, `Tesela ${p.completed} de ${p.total}`);
+          }
+        });
+
+        await refreshOfflineStats();
+        cursorCoords.innerHTML = `✅ <span style="color:var(--accent-cyan);font-weight:700;">Cuadrante Offline Guardado:</span> ${result.downloaded} teselas listas para usar sin internet.`;
+      } catch (err) {
+        console.error('[Offline Download Error]', err);
+        alert(`Error al descargar cuadrante offline: ${err.message}`);
+      } finally {
+        btnDownloadOfflineMap.disabled = false;
+        btnDownloadOfflineMap.textContent = '📥 Descargar Cuadrante';
+      }
+    });
+  }
+
+  if (btnClearOfflineCache) {
+    btnClearOfflineCache.addEventListener('click', async () => {
+      const ok = confirm('¿Deseas purgar todas las teselas de mapas almacenadas en la caché offline?');
+      if (ok) {
+        await offlineMapManager.clearTileCache();
+        await refreshOfflineStats();
+        cursorCoords.textContent = '🗑️ Caché de teselas purgada con éxito.';
+      }
     });
   }
 

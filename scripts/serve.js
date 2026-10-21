@@ -60,8 +60,11 @@ function startServer(port) {
     }
 
     // Ruta segura dentro del directorio a servir
-    const safePath = path.normalize(path.join(SERVE_DIR, reqUrl));
-    if (!safePath.startsWith(SERVE_DIR)) {
+    let safePath = path.normalize(path.join(SERVE_DIR, reqUrl));
+    if (!fs.existsSync(safePath) && fs.existsSync(path.join(ROOT, 'public', reqUrl))) {
+      safePath = path.join(ROOT, 'public', reqUrl);
+    }
+    if (!safePath.startsWith(SERVE_DIR) && !safePath.startsWith(path.join(ROOT, 'public'))) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('403 Prohibido: acceso denegado');
       return;

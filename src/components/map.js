@@ -145,6 +145,17 @@ export class BiTaViMap {
   }
 
   /**
+   * Obtiene la plantilla de URL de la capa de teselas activa para descargas offline
+   * @returns {string} Plantilla URL con {z}/{x}/{y}
+   */
+  getCurrentTileUrlTemplate() {
+    if (this.currentTileLayer && this.currentTileLayer._url) {
+      return this.currentTileLayer._url;
+    }
+    return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  }
+
+  /**
    * Devuelve el tema del fondo del mapa actual para ajustar el contraste
    * de overlays (líneas y puntos de fotos): 'dark' u 'light'.
    */

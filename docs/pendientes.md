@@ -1,7 +1,7 @@
 # 📋 BiTaVi PC - Hoja de Ruta y Tareas Pendientes
 
 > **Documento Oficial de Seguimiento y Próximas Fases**  
-> **Versión Actual del Sistema**: `v1.0.3-alpha`  
+> **Versión Actual del Sistema**: `v1.0.4-alpha`  
 > **Última Actualización**: 21 de octubre de 2026  
 > **Plataforma**: Aplicación Web / Desktop para PC (Windows y Linux)
 
@@ -10,6 +10,11 @@
 ## 1. Estado Actual del Sistema (Lo Completado Recientemente)
 
 Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades críticas:
+- ✅ **Soporte de Mapas 100% Offline y Caché de Teselas (`v1.0.4-alpha`)**:
+  - Service Worker táctico con estrategia Cache-First (`public/sw.js`) para teselas cartográficas de OpenStreetMap, OpenTopoMap, Esri y CyclOSM.
+  - Administrador de mapas offline (`src/components/offline-map-manager.js`) con cálculo matemático Web Mercator ($EPSG:3857$).
+  - Descarga concurrente controlada de cuadrantes cartográficos visibles con telemetría en tiempo real.
+  - Subpanel interactivo en el HUD con monitor de conectividad (`🛰️ EN LÍNEA` / `📡 MODO CAMPO OFFLINE`), contador de teselas y purga de caché.
 - ✅ **Suite de Pruebas Unitarias Automatizadas con Vitest (`v1.0.3-alpha`)**:
   - Configuración de Vitest con entorno `happy-dom` (`vitest.config.js`).
   - 19 pruebas unitarias automatizadas en 6 suites: trigonometría esférica de rumbo y Haversine (`playback.js`), conversión cromática a `aabbggrr` y generador KML 2.2 (`kml-kmz-exporter.js`), saneamiento de nombres de archivo y GPX 1.1 (`gpx-parser.js`), Magic Bytes `PK` y filtro de archivos basura (`folder-loader.js`), normalización y búsqueda insensible a tildes (`search.js`), y deserialización de estructuras Android (`bitavi-native-parser.js`).
@@ -57,14 +62,7 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
 
 ## 2. Tareas Pendientes Priorizadas (Próximas Fases)
 
-### 🔹 Prioridad 1: Soporte para Mapas 100% Offline (Tile Caching / PWA)
-- **Objetivo**: Permitir el uso del visor en computadoras portátiles en campo sin conexión a internet ni cobertura de red.
-- **Solución técnica planificada**:
-  - Configurar un Service Worker con estrategia Cache-First para teselas cartográficas descargadas.
-  - Botón táctico para "Descargar cuadrante cartográfico" del viaje planificado.
-  - Soporte para importar archivos locales de mapas raster/vectoriales compactos (`.mbtiles`).
-
-### 🔹 Prioridad 2: Empaquetado de Escritorio Autónomo (Tauri)
+### 🔹 Prioridad 1: Empaquetado de Escritorio Autónomo (Tauri)
 - **Objetivo**: Generar binarios independientes sin necesidad de abrir un navegador web:
   - Windows: instalador `.exe` o versión portable ligera.
   - Linux: paquete `.AppImage` o `.deb`.

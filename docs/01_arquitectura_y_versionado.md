@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.3-alpha`
+- **Versión Actual**: `v1.0.4-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,20 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.4-alpha` (2026-10-21)
+- **Soporte de Mapas 100% Offline y Caché de Teselas Cartográficas (`public/sw.js` y `src/components/offline-map-manager.js`)**:
+  - **Service Worker Táctico con Estrategia Cache-First (`public/sw.js`)**:
+    - Intercepción automática de peticiones hacia servidores de mapas libres (OpenStreetMap, OpenTopoMap, Esri, CyclOSM).
+    - Entrega instantánea de teselas en 0 ms desde la caché local `bitavi-tiles-v1`.
+    - Auto-almacenamiento de teselas al navegar en línea y respuesta de contingencia transparente de 1x1 píxel sin conexión para teselas no descargadas.
+  - **Gestor de Cuadrantes Cartográficos (`src/components/offline-map-manager.js`)**:
+    - Proyección matemática Web Mercator ($EPSG:3857$) para cálculo y delimitación de cuadrantes geográficos en múltiples zooms.
+    - Descarga concurrente controlada (pool de 6 hilos simultáneos) con barra de progreso y telemetría en tiempo real.
+    - Monitoreo de conectividad (`online`/`offline`) y purgado selectivo de caché de teselas.
+  - **Integración en la Interfaz HUD**:
+    - Subpanel táctico en "01 Capas Cartográficas": monitor de estado de conexión (`🛰️ EN LÍNEA` / `📡 MODO CAMPO OFFLINE`), contador de teselas en memoria y botones `[📥 Descargar Cuadrante]` y `[🗑️ Purgar]`.
+  - **Documentación Técnica Oficial**: Se redactó la especificación técnica en [`docs/18_soporte_mapas_offline_tile_caching.md`](18_soporte_mapas_offline_tile_caching.md).
 
 ### `v1.0.3-alpha` (2026-10-21)
 - **Suite de Pruebas Unitarias Automatizadas con Vitest (`tests/`)**:
