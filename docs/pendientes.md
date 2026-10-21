@@ -1,7 +1,7 @@
 # 📋 BiTaVi PC - Hoja de Ruta y Tareas Pendientes
 
 > **Documento Oficial de Seguimiento y Próximas Fases**  
-> **Versión Actual del Sistema**: `v1.0.0-alpha`  
+> **Versión Actual del Sistema**: `v1.0.1-alpha`  
 > **Última Actualización**: 21 de octubre de 2026  
 > **Plataforma**: Aplicación Web / Desktop para PC (Windows y Linux)
 
@@ -10,6 +10,12 @@
 ## 1. Estado Actual del Sistema (Lo Completado Recientemente)
 
 Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades críticas:
+- ✅ **Modo Reproductor y Simulador Táctico de Viaje (`v1.0.1-alpha`)**:
+  - Motor de animación desacoplado `RoutePlaybackSimulator` (`src/components/playback.js`) a 60 FPS con `requestAnimationFrame`.
+  - Marcador móvil vectorial con rotación por rumbo dinámico esférico (*bearing* de 0° a 360°) y traducción a puntos cardinales.
+  - Barra de control HUD (`#playback-bar`) con Play, Pause, Reinicio, línea de tiempo deslizante (*timeline slider*) y selector de velocidad `1x` a `50x`.
+  - Seguimiento de cámara opcional y telemetría en tiempo real (velocidad, altitud, distancia acumulada, hora).
+  - Botón de reproducción rápida en cada fila del panel lateral de rutas.
 - ✅ **Desacoplamiento de Descompresión ZIP Masiva a Web Worker (`v1.0.0-alpha`)**:
   - Web Worker dedicado (`src/workers/zip-worker.js`) para procesar `JSZip` fuera del hilo principal.
   - Transferencia Zero-Copy (`transferable ArrayBuffers`) de fotografías para no saturar memoria RAM.
@@ -42,27 +48,13 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
 
 ## 2. Tareas Pendientes Priorizadas (Próximas Fases)
 
-### 🔹 Prioridad 1: Modo Reproductor / Simulador Táctico de Viaje (Playback de Ruta)
-- **Objetivo**: Permitir al usuario revivir la expedición mediante una animación temporal sobre el mapa.
-- **Funcionalidades a incorporar**:
-  - Barra de control de reproducción en el HUD: `[▶ Reproducir]`, `[⏸ Pausar]`, `[⏹ Reiniciar]`.
-  - Selector de velocidad de simulación: `1x`, `2x`, `5x`, `10x`, `50x`.
-  - Marcador móvil con rumbo dinámico que avanza sobre el trazado mostrando telemetría en vivo (velocidad instantánea, altitud, fecha y hora).
-  - Resaltado automático de fotografías y waypoints al transitar cerca del punto geográfico donde fueron tomadas.
-
-### 🔹 Prioridad 2: Exportación a Formato KML / KMZ para Google Earth 3D
+### 🔹 Prioridad 1: Exportación a Formato KML / KMZ para Google Earth 3D
 - **Objetivo**: Extender la capacidad de exportación para entornos tridimensionales de escritorio.
 - **Detalles técnicos**:
   - Generador de XML KML estándar con estilos de trazado tácticos (`<LineString>`, `<altitudeMode>absolute</altitudeMode>`).
   - Empaquetado KMZ comprimido con las miniaturas de las fotografías incrustadas en los popups para visualización tridimensional en Google Earth Desktop.
 
-### 🔹 Prioridad 3: Suite de Pruebas Unitarias Automatizadas (Vitest)
-- **Objetivo**: Extender la capacidad de exportación para entornos tridimensionales de escritorio.
-- **Detalles técnicos**:
-  - Generador de XML KML estándar con estilos de trazado tácticos (`<LineString>`, `<altitudeMode>absolute</altitudeMode>`).
-  - Empaquetado KMZ comprimido con las miniaturas de las fotografías incrustadas en los popups para visualización tridimensional en Google Earth Desktop.
-
-### 🔹 Prioridad 3: Suite de Pruebas Unitarias Automatizadas (Vitest)
+### 🔹 Prioridad 2: Suite de Pruebas Unitarias Automatizadas (Vitest)
 - **Situación actual**: Solo existe el validador sintáctico estático `scripts/check.js`.
 - **Solución técnica planificada**:
   - Configurar `vitest` en el entorno de desarrollo.
@@ -72,18 +64,18 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
     - `bitavi-native-parser.js`: parseo de datos Android (`rutas.txt`, `puntos.txt`, `marcadores.txt`, `favoritos.txt`).
     - `search.js`: indexación y búsqueda insensible a acentos.
 
-### 🔹 Prioridad 4: Soporte para Mapas 100% Offline (Tile Caching / PWA)
+### 🔹 Prioridad 3: Soporte para Mapas 100% Offline (Tile Caching / PWA)
 - **Objetivo**: Permitir el uso del visor en computadoras portátiles en campo sin conexión a internet ni cobertura de red.
 - **Solución técnica planificada**:
   - Configurar un Service Worker con estrategia Cache-First para teselas cartográficas descargadas.
   - Botón táctico para "Descargar cuadrante cartográfico" del viaje planificado.
   - Soporte para importar archivos locales de mapas raster/vectoriales compactos (`.mbtiles`).
 
-### 🔹 Prioridad 5: Empaquetado de Escritorio Autónomo (Tauri)
+### 🔹 Prioridad 4: Empaquetado de Escritorio Autónomo (Tauri)
 - **Objetivo**: Generar binarios independientes sin necesidad de abrir un navegador web:
   - Windows: instalador `.exe` o versión portable ligera.
   - Linux: paquete `.AppImage` o `.deb`.
-- **Ventaja adicional**: Registrar asociaciones de archivo para que al hacer doble clic en cualquier archivo `.gpx` o `.zip` en el sistema operativo se abra automáticamente BiTaVi PC.
+  - Registrar asociaciones de archivo para que al hacer doble clic en cualquier archivo `.gpx` o `.zip` en el sistema operativo se abra automáticamente BiTaVi PC.
 
 ---
 

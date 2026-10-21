@@ -7,6 +7,7 @@ import { GeoSearch } from './components/search.js';
 import { GoogleDriveConnector } from './components/drive-connector.js';
 import { FolderBackupLoader } from './components/folder-loader.js';
 import { BiTaViNativeParser } from './components/bitavi-native-parser.js';
+import { RoutePlaybackSimulator } from './components/playback.js';
 import { ShareCard } from './components/share-card.js';
 import { BiTaViStorage } from './components/storage.js';
 import { APP_VERSION } from './version.js';
@@ -131,6 +132,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRestoreSession = document.getElementById('btn-restore-session');
   const btnDiscardSession = document.getElementById('btn-discard-session');
 
+  // Playback Simulator Elements (v1.0.1-alpha)
+  const btnTogglePlayback = document.getElementById('btn-toggle-playback');
+  const btnSimulateRoute = document.getElementById('btn-simulate-route');
+  const playbackBar = document.getElementById('playback-bar');
+  const playbackCloseBtn = document.getElementById('playback-close-btn');
+  const playbackPlayBtn = document.getElementById('playback-play-btn');
+  const playbackStopBtn = document.getElementById('playback-stop-btn');
+  const playbackSlider = document.getElementById('playback-slider');
+  const playbackPercent = document.getElementById('playback-percent');
+  const playbackFollowBtn = document.getElementById('playback-follow-btn');
+  const playbackSpeedBtns = document.querySelectorAll('.playback-speed-group .speed-btn');
+  const simTelemetryDist = document.getElementById('sim-telemetry-dist');
+  const simTelemetrySpeed = document.getElementById('sim-telemetry-speed');
+  const simTelemetryEle = document.getElementById('sim-telemetry-ele');
+  const simTelemetryBearing = document.getElementById('sim-telemetry-bearing');
+  const simTelemetryTime = document.getElementById('sim-telemetry-time');
+  const playbackRouteName = document.getElementById('playback-route-name');
+
   // State Variables
   let activeModalPhoto = null;
   let currentRouteBounds = null;
@@ -180,6 +199,166 @@ document.addEventListener('DOMContentLoaded', () => {
   const nativeParser = new BiTaViNativeParser(mapInstance);
   const shareCard = new ShareCard(APP_VERSION);
   const storage = new BiTaViStorage();
+
+  // 3. Inicializar Simulador y Reproductor Táctico de Viaje (v1.0.1-alpha)
+  const playbackSimulator = new RoutePlaybackSimulator(mapInstance);
+
+  playbackSimulator.onTelemetryUpdate = (t) => {
+    if (simTelemetryDist) simTelemetryDist.textContent = `${t.distanceKm} / ${t.totalDistanceKm} km`;
+    if (simTelemetrySpeed) simTelemetrySpeed.textContent = `${t.speedKmh} km/h`;
+    if (simTelemetryEle) simTelemetryEle.textContent = `${t.ele} m`;
+    if (simTelemetryBearing) simTelemetryBearing.textContent = `${t.bearing}° ${t.cardinal}`;
+    if (simTelemetryTime) simTelemetryTime.textContent = t.time;
+    if (playbackSlider) playbackSlider.value = t.percent;
+    if (playbackPercent) playbackPercent.textContent = `${t.percent.toFixed(1)}%`;
+  };
+
+  playbackSimulator.onStateChange = (state) => {
+    if (playbackPlayBtn) {
+      playbackPlayBtn.textContent = state.isPlaying ? '⏸ Pausar' : '▶ Reanudar';
+      if (state.isPlaying) {
+        playbackPlayBtn.classList.remove('accent');
+        playbackPlayBtn.classList.add('highlight-btn');
+      } else {
+        playbackPlayBtn.classList.remove('highlight-btn');
+        playbackPlayBtn.classList.add('accent');
+      }
+    }
+  };
+
+  playbackSimulator.onFinish = () => {
+    if (playbackPlayBtn) {
+      playbackPlayBtn.textContent = '▶ Reiniciar';
+      playbackPlayBtn.classList.remove('highlight-btn');
+      playbackPlayBtn.classList.add('accent');
+    }
+    updateProgress(100, '🏁 Simulación táctica completada.', 'Recorrido finalizado.');
+  };
+
+  playbackSimulator.onPhotoNear = (photo, distMeters) => {
+    const coordsEl = document.getElementById('cursor-coords');
+    if (coordsEl) {
+      coordsEl.innerHTML = `📷 <span style="color:var(--accent-cyan)">Foto en ruta:</span> ${photo.name} (${Math.round(distMeters)} m)`;
+    }
+  };
+
+  function openPlayback(points, title = 'Ruta Activa') {
+    if (!points || points.length < 2) {
+      alert('⚠️ No hay suficientes puntos GPS cargados para simular el recorrido.');
+      return;
+    }
+    if (playbackBar) playbackBar.classList.remove('hidden');
+    if (playbackRouteName) playbackRouteName.textContent = title;
+    playbackSimulator.loadRoute(points, photoHandler.photos);
+    if (playbackSlider) playbackSlider.value = 0;
+    if (playbackPercent) playbackPercent.textContent = '0.0%';
+    if (playbackPlayBtn) {
+      playbackPlayBtn.textContent = '▶ Iniciar';
+      playbackPlayBtn.classList.add('accent');
+      playbackPlayBtn.classList.remove('highlight-btn');
+    }
+  }
+
+  function startPlaybackForActiveRoutes() {
+    let pts = [];
+    let title = 'Expedición';
+
+    if (nativeParser.pointsByRoute && nativeParser.pointsByRoute.size > 0) {
+      const visibleIds = Array.from(nativeParser.visibleRoutes);
+      if (visibleIds.length > 0) {
+        visibleIds.forEach(id => {
+          const routePts = nativeParser.pointsByRoute.get(id);
+          if (routePts && routePts.length > 0) {
+            pts = pts.concat(routePts);
+          }
+        });
+        const firstRoute = nativeParser.routes.find(r => r.id === visibleIds[0]);
+        title = visibleIds.length === 1 ? (firstRoute?.name || 'Ruta') : `${visibleIds.length} Rutas Visibles`;
+      } else {
+        const firstEntry = nativeParser.pointsByRoute.entries().next().value;
+        if (firstEntry) {
+          pts = firstEntry[1];
+          const r = nativeParser.routes.find(x => x.id === firstEntry[0]);
+          title = r?.name || 'Ruta';
+        }
+      }
+    }
+
+    if (!pts || pts.length < 2) {
+      alert('ℹ️ Carga primero una ruta GPX o un backup de BiTaVi para iniciar la simulación táctica.');
+      return;
+    }
+
+    openPlayback(pts, title);
+  }
+
+  // Listeners de la barra de reproducción
+  if (btnTogglePlayback) {
+    btnTogglePlayback.addEventListener('click', () => {
+      if (playbackBar && !playbackBar.classList.contains('hidden')) {
+        playbackSimulator.stop();
+        playbackBar.classList.add('hidden');
+      } else {
+        startPlaybackForActiveRoutes();
+      }
+    });
+  }
+
+  if (btnSimulateRoute) {
+    btnSimulateRoute.addEventListener('click', () => {
+      startPlaybackForActiveRoutes();
+    });
+  }
+
+  if (playbackCloseBtn) {
+    playbackCloseBtn.addEventListener('click', () => {
+      playbackSimulator.destroy();
+      if (playbackBar) playbackBar.classList.add('hidden');
+    });
+  }
+
+  if (playbackPlayBtn) {
+    playbackPlayBtn.addEventListener('click', () => {
+      if (playbackSimulator.isPlaying) {
+        playbackSimulator.pause();
+      } else {
+        playbackSimulator.play();
+      }
+    });
+  }
+
+  if (playbackStopBtn) {
+    playbackStopBtn.addEventListener('click', () => {
+      playbackSimulator.stop();
+      if (playbackSlider) playbackSlider.value = 0;
+      if (playbackPercent) playbackPercent.textContent = '0.0%';
+    });
+  }
+
+  if (playbackSlider) {
+    playbackSlider.addEventListener('input', (e) => {
+      playbackSimulator.seekPercent(parseFloat(e.target.value));
+    });
+  }
+
+  if (playbackFollowBtn) {
+    playbackFollowBtn.addEventListener('click', () => {
+      const willFollow = !playbackSimulator.followVehicle;
+      playbackSimulator.setFollow(willFollow);
+      playbackFollowBtn.classList.toggle('active-toggle', willFollow);
+    });
+  }
+
+  if (playbackSpeedBtns) {
+    playbackSpeedBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        playbackSpeedBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const speed = parseFloat(btn.dataset.speed) || 1;
+        playbackSimulator.setSpeed(speed);
+      });
+    });
+  }
 
   // Sincronizador del buscador táctico local con los datos de expedición
   const refreshSearchIndex = () => {
@@ -412,6 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <button type="button" class="btn-inline-icon btn-rename-route" title="Renombrar ruta">✏️</button>
         </div>
         <span class="route-dist-tag monospace">${r.distanceKm} km</span>
+        <button type="button" class="btn-inline-icon btn-play-route" title="Simular / Reproducir esta ruta en el mapa" style="color:var(--accent-cyan);">▶</button>
         <button type="button" class="btn-inline-icon btn-toggle-vis" title="Mostrar/Ocultar en el mapa">${isVisible ? '👁️' : '🙈'}</button>
         <button type="button" class="btn-inline-icon btn-download-gpx" title="Guardar esta ruta individual en .GPX con su nombre">💾</button>
         <button type="button" class="btn-inline-icon btn-danger btn-delete-route" title="Eliminar ruta del mapa">✕</button>
@@ -423,9 +603,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const nameText = row.querySelector('.route-name-text');
       const nameInput = row.querySelector('.route-name-input');
       const renameBtn = row.querySelector('.btn-rename-route');
+      const playBtn = row.querySelector('.btn-play-route');
       const visBtn = row.querySelector('.btn-toggle-vis');
       const downloadBtn = row.querySelector('.btn-download-gpx');
       const deleteBtn = row.querySelector('.btn-delete-route');
+
+      if (playBtn) {
+        playBtn.addEventListener('click', () => {
+          const pts = nativeParser.pointsByRoute.get(r.id);
+          if (pts && pts.length > 1) {
+            nativeParser.setRouteVisibility(r.id, true);
+            row.classList.remove('route-hidden-row');
+            if (visBtn) visBtn.textContent = '👁️';
+            exportBox.checked = true;
+            openPlayback(pts, r.name);
+          } else {
+            alert('⚠️ Esta ruta no contiene suficientes puntos GPS para la simulación.');
+          }
+        });
+      }
 
       // Al cambiar la casilla de verificación: mostrar/ocultar la ruta en el mapa de inmediato
       exportBox.addEventListener('change', (e) => {

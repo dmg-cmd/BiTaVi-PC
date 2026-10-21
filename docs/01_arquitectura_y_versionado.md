@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.0-alpha`
+- **Versión Actual**: `v1.0.1-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,22 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.1-alpha` (2026-10-21)
+- **Modo Reproductor y Simulador Táctico de Viaje (Playback de Ruta)**:
+  - **Motor de Simulación Desacoplado (`src/components/playback.js`)**:
+    - Implementación de la clase `RoutePlaybackSimulator` que reproduce de forma fluida el recorrido mediante `requestAnimationFrame` a 60 FPS.
+    - Marcador táctico móvil vectorial con orientación dinámica calculada mediante fórmula esférica de rumbo (*bearing* de 0° a 360°) y traducción a rumbos cardinales (`N`, `NE`, `E`, etc.).
+  - **Barra de Control HUD Interactiva (`#playback-bar`)**:
+    - Controles de reproducción: `[▶ Iniciar]` / `[⏸ Pausar]` / `[⏹ Reiniciar]`.
+    - Selector de velocidad instantánea en tiempo real (`1x`, `2x`, `5x`, `10x`, `20x`, `50x`).
+    - Deslizador de línea de tiempo (*timeline slider*) porcentual y continuo para saltar o rebobinar instantáneamente a cualquier momento de la expedición.
+    - Interruptor `[🎯 Seguir Cámara]` para centrado automático y seguimiento visual del vehículo o explorador.
+    - Telemetría en vivo: distancia recorrida acumulada, altitud instantánea, velocidad calculada en km/h, rumbo cardinal y hora del registro.
+  - **Integración con Selector de Rutas y Galería**:
+    - Botón de reproducción directa `[▶]` en cada fila del panel de rutas y acceso táctico global en el HUD superior (`#btn-toggle-playback`).
+    - Detección de proximidad geográfica (< 60 m) con fotos geolocalizadas durante el avance del simulador.
+  - **Documentación Técnica Oficial**: Se redactó el manual de arquitectura y especificación matemática en [`docs/15_simulador_reproductor_tactico_viaje.md`](15_simulador_reproductor_tactico_viaje.md).
 
 ### `v1.0.0-alpha` (2026-10-21)
 - **Hito Mayor: Desacoplamiento de Descompresión Masiva ZIP en Web Worker (`src/workers/zip-worker.js`)**:
