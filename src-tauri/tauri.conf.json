@@ -1,0 +1,67 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "BiTaVi",
+  "version": "1.0.5",
+  "identifier": "com.bitavi.pc",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "BiTaVi - Bitácora Táctica de Viaje",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "Bitácora Táctica de Viaje - Visor Cartográfico y Rutas para PC",
+    "longDescription": "Aplicación táctica de escritorio para visualización cartográfica multiformato, análisis de telemetría GPS, simulación 3D y gestión de respaldos BiTaVi.",
+    "fileAssociations": [
+      {
+        "ext": ["gpx"],
+        "name": "GPX",
+        "description": "Ruta GPS en formato GPX",
+        "mimeType": "application/gpx+xml"
+      },
+      {
+        "ext": ["kml"],
+        "name": "KML",
+        "description": "Ruta geográfica Google Earth KML",
+        "mimeType": "application/vnd.google-earth.kml+xml"
+      },
+      {
+        "ext": ["kmz"],
+        "name": "KMZ",
+        "description": "Paquete comprimido Google Earth KMZ",
+        "mimeType": "application/vnd.google-earth.kmz"
+      },
+      {
+        "ext": ["zip"],
+        "name": "ZIP",
+        "description": "Paquete de respaldo BiTaVi ZIP",
+        "mimeType": "application/zip"
+      }
+    ]
+  }
+}

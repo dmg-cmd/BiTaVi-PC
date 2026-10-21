@@ -1,12 +1,15 @@
 {
   "name": "bitavi-pc",
-  "version": "1.0.4-alpha",
+  "version": "1.0.5-alpha",
   "description": "Bitácora Táctica de Viaje - Visor Cartográfico y Rutas para PC",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "package": "node scripts/package.js",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
@@ -20,6 +23,7 @@
     "leaflet": "^1.9.4"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
     "happy-dom": "^21.0.4",
     "vite": "^8.2.2",
     "vitest": "^5.0.5"

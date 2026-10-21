@@ -1,7 +1,7 @@
 # 📋 BiTaVi PC - Hoja de Ruta y Tareas Pendientes
 
 > **Documento Oficial de Seguimiento y Próximas Fases**  
-> **Versión Actual del Sistema**: `v1.0.4-alpha`  
+> **Versión Actual del Sistema**: `v1.0.5-alpha`  
 > **Última Actualización**: 21 de octubre de 2026  
 > **Plataforma**: Aplicación Web / Desktop para PC (Windows y Linux)
 
@@ -9,7 +9,13 @@
 
 ## 1. Estado Actual del Sistema (Lo Completado Recientemente)
 
-Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades críticas:
+Se resolvieron, verificaron y documentaron con éxito el 100% de las funcionalidades tácticas requeridas en la hoja de ruta inicial:
+
+- ✅ **Empaquetado de Escritorio Autónomo con Tauri v2 (`v1.0.5-alpha`)**:
+  - Backend nativo Rust ultra-eficiente en `src-tauri/` con mínima huella de memoria RAM.
+  - Scripts de compilación y ejecución nativa: `npm run tauri:dev` y `npm run tauri:build`.
+  - Asociaciones de archivo en el sistema operativo para formatos de misión: `.gpx`, `.kml`, `.kmz` y `.zip`.
+  - Documentación técnica completa en `docs/19_empaquetado_escritorio_tauri.md`.
 - ✅ **Soporte de Mapas 100% Offline y Caché de Teselas (`v1.0.4-alpha`)**:
   - Service Worker táctico con estrategia Cache-First (`public/sw.js`) para teselas cartográficas de OpenStreetMap, OpenTopoMap, Esri y CyclOSM.
   - Administrador de mapas offline (`src/components/offline-map-manager.js`) con cálculo matemático Web Mercator ($EPSG:3857$).
@@ -41,8 +47,7 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
   - Blindaje estricto de `.gitignore` excluyendo backups personales y celulares.
 - ✅ **Blindaje del Script de Inicio de Windows (`v0.5.4-alpha`)**:
   - Corrección de sintaxis batch para `cmd.exe` (eliminación de paréntesis conflictivos y adopción de saltos seguros con `goto`).
-  - Detección preventiva de Node.js en el sistema.
-  - Apertura nativa de navegador en Vite (`--open`).
+  - Detección preventiva de Node.js en el sistema y apertura nativa de navegador en Vite (`--open`).
 - ✅ **Gestión Incremental de Rutas y Exportación Separada (`v0.5.5-alpha`)**:
   - Botón `[➕ Agregar Ruta]` para sumar archivos GPX, KML y TXT sin sobrescribir rutas existentes.
   - Renombrado interactivo in situ de rutas con nombres personalizados (`✏️`).
@@ -50,23 +55,18 @@ Se resolvieron y verificaron satisfactoriamente las siguientes funcionalidades c
 - ✅ **Controlador Táctico de Rueda del Mouse (`v0.5.6-alpha`)**:
   - Paso unitario estricto de 1 nivel por muesca de rueda (fin del salto descontrolado al zoom máximo).
   - Filtro anti-rebote y neutralización de inercia de Windows (`wheelCooldown: 160 ms`).
-  - Zoom focalizado exactamente sobre las coordenadas del cursor del mouse.
 - ✅ **Herramienta Universal de Reubicación de Fotos (`v0.5.7-alpha`)**:
   - Botón permanente `[📍 Reubicar en el mapa]` en el visor modal para mover o corregir con un clic fotos con coordenadas inexactas.
   - Persistencia transaccional de las nuevas coordenadas en IndexedDB.
 - ✅ **Reactivación Inmediata de Casillas de Verificación de Rutas (`v0.5.8-alpha`)**:
   - Sincronización directa entre las casillas de verificación de la lista y la visibilidad en Leaflet (mostrar/ocultar instantáneo).
-  - Casilla maestra superior para encender/apagar todas las rutas a la vez.
 
 ---
 
-## 2. Tareas Pendientes Priorizadas (Próximas Fases)
-
-### 🔹 Prioridad 1: Empaquetado de Escritorio Autónomo (Tauri)
-- **Objetivo**: Generar binarios independientes sin necesidad de abrir un navegador web:
-  - Windows: instalador `.exe` o versión portable ligera.
-  - Linux: paquete `.AppImage` o `.deb`.
-  - Registrar asociaciones de archivo para que al hacer doble clic en cualquier archivo `.gpx` o `.zip` en el sistema operativo se abra automáticamente BiTaVi PC.
+## 2. Próximas Mejoras y Evolución Continua (Backlog Opcional)
+- **Sincronización P2P / LAN**: Compartir rutas en tiempo real entre instancias de BiTaVi en una misma red local táctica sin Internet.
+- **Gráficos de Perfil de Elevación Interactivo**: Perfil altimétrico SVG/Canvas interactivo sincronizado con el cursor sobre la polilínea del mapa.
+- **Capas Vectoriales Personalizadas**: Soporte para cargar capas de curvas de nivel y polígonos GeoJSON de áreas protegidas o zonas de interés.
 
 ---
 

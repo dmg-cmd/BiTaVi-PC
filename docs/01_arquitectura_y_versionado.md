@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.4-alpha`
+- **Versión Actual**: `v1.0.5-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,16 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.5-alpha` (2026-10-21)
+- **Empaquetado Nativo de Escritorio con Tauri v2 (`src-tauri/`)**:
+  - **Integración de Tauri v2 con Backend Rust Ultraligero**:
+    - Configuración integral en `src-tauri/tauri.conf.json` e inicialización del núcleo Rust en `src-tauri/src/main.rs` y `src-tauri/src/lib.rs`.
+    - Tamaño de binario y consumo de memoria mínimos frente a soluciones basadas en Chromium pesado (Electron).
+    - Scripts npm añadidos: `"tauri"`, `"tauri:dev"` y `"tauri:build"`.
+  - **Asociaciones Nativas de Archivos del Sistema Operativo**:
+    - Registro de extensiones de archivo en el sistema operativo (Windows y Linux): `.gpx` (GPS Exchange Format), `.kml` y `.kmz` (Google Earth), y `.zip` (Backups de BiTaVi).
+  - **Documentación Técnica Oficial**: Se redactó la especificación técnica en [`docs/19_empaquetado_escritorio_tauri.md`](19_empaquetado_escritorio_tauri.md).
 
 ### `v1.0.4-alpha` (2026-10-21)
 - **Soporte de Mapas 100% Offline y Caché de Teselas Cartográficas (`public/sw.js` y `src/components/offline-map-manager.js`)**:
