@@ -243,6 +243,119 @@ ${trkptXml}
 }
 
 /**
+ * Genera un archivo GPX 1.1 unificado con múltiples segmentos de ruta (<trkseg>).
+ * Permite guardar varias rutas marcadas como una sola ruta continua o multisegmento.
+ * @param {string} name
+ * @param {Array<Array<object>>|Array<object>} segments - Lista de arrays de puntos por segmento, o array único de puntos
+ * @param {Array<object>} waypoints
+ * @returns {string} XML GPX 1.1
+ */
+export function createCombinedGpxXml(name, segments = [], waypoints = []) {
+  const safeName = (name || 'Ruta Unificada BiTaVi')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const nowIso = new Date().toISOString();
+
+  let wptXml = '';
+  if (waypoints && waypoints.length > 0) {
+    wptXml = waypoints.map(w => {
+      const wName = (w.name || 'Waypoint')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const wDesc = w.desc
+        ? `\n    <desc>${w.desc.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</desc>`
+        : '';
+      return `  <wpt lat="${w.lat}" lon="${w.lng}">\n    <name>${wName}</name>${wDesc}\n  </wpt>`;
+    }).join('\n') + '\n';
+  }
+
+  // Normalizar segments: si se pasa un array simple de puntos [{lat,lng}], envolverlo en [points]
+  const segmentList = (segments.length > 0 && !Array.isArray(segments[0]))
+    ? [segments]
+    : segments;
+
+  let trksegsXml = '';
+  for (const pts of segmentList) {
+    if (!pts || pts.length === 0) continue;
+    const ptsXml = pts.map(p => {
+      const eleTag = (p.ele !== null && p.ele !== undefined && !isNaN(p.ele))
+        ? `\n        <ele>${p.ele}</ele>`
+        : '';
+      const isoTime = p.time
+        ? p.time
+        : (p.timestamp ? new Date(p.timestamp).toISOString() : null);
+      const timeTag = isoTime ? `\n        <time>${isoTime}</time>` : '';
+      const speedTag = (p.speed !== null && p.speed !== undefined && !isNaN(p.speed))
+        ? `\n        <speed>${p.speed}</speed>`
+        : '';
+      return `      <trkpt lat="${p.lat}" lon="${p.lng}">${eleTag}${timeTag}${speedTag}\n      </trkpt>`;
+    }).join('\n');
+
+    trksegsXml += `    <trkseg>\n${ptsXml}\n    </trkseg>\n`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="BiTaVi PC" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${safeName}</name>
+    <time>${nowIso}</time>
+  </metadata>
+${wptXml}  <trk>
+    <name>${safeName}</name>
+${trksegsXml}  </trk>
+</gpx>`;
+}
+
+/**
+ * Extrae una cadena de fecha limpia en formato YYYY-MM-DD para nombrar archivos a partir de los datos de una ruta.
+ * Prioriza: startTime de la ruta -> time/timestamp del primer punto -> fecha en el nombre -> fecha actual.
+ * @param {object} route
+ * @param {Array<object>} points
+ * @returns {string} Fecha en formato YYYY-MM-DD
+ */
+export function extractRouteDateSlug(route, points = []) {
+  // 1. Probar startTime de la ruta
+  if (route && route.startTime) {
+    const d = new Date(route.startTime);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  }
+
+  // 2. Probar primer punto con time o timestamp
+  if (points && points.length > 0) {
+    const firstPt = points[0];
+    if (firstPt.time) {
+      const matchIso = String(firstPt.time).match(/\b(\d{4}-\d{2}-\d{2})\b/);
+      if (matchIso) return matchIso[1];
+      const d = new Date(firstPt.time);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    if (firstPt.timestamp) {
+      const d = new Date(firstPt.timestamp);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+  }
+
+  // 3. Probar fecha en el nombre de la ruta (ej: "backup_20260626", "2026-06-26", "2026_06_26")
+  if (route && route.name) {
+    const matchDelim = route.name.match(/(?:^|[^0-9])(20\d{2})[-_]([01]\d)[-_]([0-3]\d)(?:[^0-9]|$)/);
+    if (matchDelim) {
+      return `${matchDelim[1]}-${matchDelim[2]}-${matchDelim[3]}`;
+    }
+    const matchCompact = route.name.match(/(?:^|[^0-9])(20\d{2})([01]\d)([0-3]\d)(?:[^0-9]|$)/);
+    if (matchCompact) {
+      return `${matchCompact[1]}-${matchCompact[2]}-${matchCompact[3]}`;
+    }
+  }
+
+  // 4. Fallback: fecha actual del sistema
+  return new Date().toISOString().split('T')[0];
+}
+
+/**
  * Limpia un nombre de ruta para que sea un nombre de archivo seguro en Windows y Linux.
  * @param {string} name
  * @param {string} fallback

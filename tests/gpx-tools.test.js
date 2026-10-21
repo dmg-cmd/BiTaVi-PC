@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeFilename, createGpxXml } from '../src/components/gpx-parser.js';
+import { sanitizeFilename, createGpxXml, createCombinedGpxXml, extractRouteDateSlug } from '../src/components/gpx-parser.js';
 
 describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
   it('sanitizeFilename limpia caracteres ilegales en Windows y Linux', () => {
@@ -30,5 +30,43 @@ describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
     expect(xml).toContain('<ele>25.5</ele>');
     expect(xml).toContain('<time>2026-10-21T14:00:00Z</time>');
     expect(xml).toContain('<speed>4.2</speed>');
+  });
+
+  it('createCombinedGpxXml une múltiples tramos de ruta en un único GPX multisegmento', () => {
+    const segment1 = [
+      { lat: -34.601, lng: -58.380, ele: 10, time: '2026-06-26T10:00:00Z' },
+      { lat: -34.602, lng: -58.381, ele: 12, time: '2026-06-26T10:05:00Z' }
+    ];
+    const segment2 = [
+      { lat: -34.610, lng: -58.390, ele: 15, time: '2026-06-26T11:00:00Z' },
+      { lat: -34.612, lng: -58.392, ele: 18, time: '2026-06-26T11:15:00Z' }
+    ];
+
+    const xml = createCombinedGpxXml('Ruta Completa Unificada', [segment1, segment2]);
+
+    expect(xml).toContain('<name>Ruta Completa Unificada</name>');
+    // Debe contener 2 bloques <trkseg> dentro del mismo <trk>
+    const trksegMatches = xml.match(/<trkseg>/g) || [];
+    expect(trksegMatches.length).toBe(2);
+    expect(xml).toContain('lat="-34.601"');
+    expect(xml).toContain('lat="-34.612"');
+  });
+
+  it('extractRouteDateSlug extrae fechas válidas en formato YYYY-MM-DD', () => {
+    // Caso 1: startTime numérico
+    const route1 = { name: 'Expedición Sur', startTime: 1782470400000 };
+    expect(extractRouteDateSlug(route1)).toBe(new Date(1782470400000).toISOString().split('T')[0]);
+
+    // Caso 2: fecha en el primer punto
+    const route2 = { name: 'Travesía' };
+    const points2 = [{ time: '2026-08-15T09:30:00Z' }];
+    expect(extractRouteDateSlug(route2, points2)).toBe('2026-08-15');
+
+    // Caso 3: fecha en el nombre de la ruta
+    const route3 = { name: 'backup_20260626_2305' };
+    expect(extractRouteDateSlug(route3)).toBe('2026-06-26');
+
+    const route4 = { name: 'Ruta_2026-04-12_montana' };
+    expect(extractRouteDateSlug(route4)).toBe('2026-04-12');
   });
 });

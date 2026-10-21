@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { BiTaViMap } from './components/map.js';
-import { GpxHandler, sanitizeFilename, downloadBlob } from './components/gpx-parser.js';
+import { GpxHandler, sanitizeFilename, downloadBlob, createCombinedGpxXml, extractRouteDateSlug } from './components/gpx-parser.js';
 import { PhotoHandler } from './components/photo-parser.js';
 import { ZipBackupHandler } from './components/zip-loader.js';
 import { GeoSearch } from './components/search.js';
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAddRoute = document.getElementById('btn-add-route');
   const btnAddRouteAction = document.getElementById('btn-add-route-action');
   const routeFileAddInput = document.getElementById('route-file-add-input');
-  const btnSaveSelectedRoutes = document.getElementById('btn-save-selected-routes');
+  const btnSaveCombinedRoute = document.getElementById('btn-save-combined-route');
   const btnSaveSelectedZip = document.getElementById('btn-save-selected-zip');
   const btnSaveSelectedKml = document.getElementById('btn-save-selected-kml');
   const btnSaveSelectedKmz = document.getElementById('btn-save-selected-kmz');
@@ -865,8 +865,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Guarda las rutas elegidas en archivos GPX separados
-  async function saveSelectedRoutes(forceZip = false) {
+  // 1. Guarda las rutas marcadas unificadas en UN SOLO ARCHIVO GPX (.GPX)
+  function saveCombinedRoute() {
     if (!nativeParser.routes || nativeParser.routes.length === 0) {
       alert('No hay rutas disponibles para guardar.');
       return;
@@ -881,56 +881,75 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Si seleccionó 1 ruta y no es forzado ZIP, descarga directa del archivo .GPX
-    if (selectedRoutes.length === 1 && !forceZip) {
-      const r = selectedRoutes[0];
-      const gpxXml = nativeParser.exportRouteToGpx(r.id, r.name);
+    const firstRoute = selectedRoutes[0];
+    const firstRoutePoints = nativeParser.pointsByRoute.get(firstRoute.id) || [];
+    const dateSlug = extractRouteDateSlug(firstRoute, firstRoutePoints);
+
+    // Si seleccionó 1 sola ruta: se descarga su GPX individual con su nombre
+    if (selectedRoutes.length === 1) {
+      const gpxXml = nativeParser.exportRouteToGpx(firstRoute.id, firstRoute.name);
       if (!gpxXml) {
         alert('Error generando GPX para la ruta seleccionada.');
         return;
       }
-      const fileName = `${sanitizeFilename(r.name)}.gpx`;
+      const fileName = `${sanitizeFilename(firstRoute.name)}.gpx`;
       const blob = new Blob([gpxXml], { type: 'application/gpx+xml;charset=utf-8' });
       downloadBlob(blob, fileName);
-      cursorCoords.textContent = `💾 Ruta "${r.name}" guardada como ${fileName}`;
+      cursorCoords.textContent = `💾 Ruta "${firstRoute.name}" guardada como ${fileName}`;
       return;
     }
 
-    // Si seleccionó múltiples rutas y forceZip es true (o más de 2 rutas):
-    if (forceZip || selectedRoutes.length > 2) {
-      cursorCoords.textContent = `⏳ Empaquetando ${selectedRoutes.length} rutas en archivo ZIP...`;
-      const zip = new JSZip();
-      const usedNames = new Set();
+    // Múltiples rutas marcadas: unificarlas en una sola ruta GPX con tramos <trkseg>
+    cursorCoords.textContent = `⏳ Unificando ${selectedRoutes.length} rutas en un solo archivo GPX...`;
+    const segments = selectedRoutes.map(r => nativeParser.pointsByRoute.get(r.id) || []);
+    const unifiedName = `${firstRoute.name} (Unificada)`;
+    const gpxXml = createCombinedGpxXml(unifiedName, segments, nativeParser.markers);
+    const fileName = `${sanitizeFilename(firstRoute.name)}_unificada_${dateSlug}.gpx`;
+    const blob = new Blob([gpxXml], { type: 'application/gpx+xml;charset=utf-8' });
+    downloadBlob(blob, fileName);
+    cursorCoords.textContent = `✅ ${selectedRoutes.length} rutas unificadas en un solo archivo: ${fileName}`;
+  }
 
-      selectedRoutes.forEach((r, idx) => {
-        const gpxXml = nativeParser.exportRouteToGpx(r.id, r.name);
-        if (gpxXml) {
-          let baseName = sanitizeFilename(r.name, `ruta_${idx + 1}`);
-          if (usedNames.has(baseName)) {
-            baseName = `${baseName}_${idx + 1}`;
-          }
-          usedNames.add(baseName);
-          zip.file(`${baseName}.gpx`, gpxXml);
-        }
-      });
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      downloadBlob(zipBlob, 'rutas_seleccionadas_bitavi.zip');
-      cursorCoords.textContent = `✅ ${selectedRoutes.length} rutas guardadas separadas en rutas_seleccionadas_bitavi.zip`;
-    } else {
-      // Descarga secuencial directa de cada archivo .gpx suelto con su nombre
-      cursorCoords.textContent = `💾 Guardando ${selectedRoutes.length} archivos .GPX separados...`;
-      for (const r of selectedRoutes) {
-        const gpxXml = nativeParser.exportRouteToGpx(r.id, r.name);
-        if (gpxXml) {
-          const fileName = `${sanitizeFilename(r.name)}.gpx`;
-          const blob = new Blob([gpxXml], { type: 'application/gpx+xml;charset=utf-8' });
-          downloadBlob(blob, fileName);
-          await new Promise(res => setTimeout(res, 250));
-        }
-      }
-      cursorCoords.textContent = `✅ ${selectedRoutes.length} rutas guardadas por separado como archivos .GPX.`;
+  // 2. Guarda las rutas marcadas SEPARADAS en un archivo ZIP con la fecha de la primera ruta
+  async function saveSelectedRoutesZip() {
+    if (!nativeParser.routes || nativeParser.routes.length === 0) {
+      alert('No hay rutas disponibles para guardar.');
+      return;
     }
+
+    const selectedBoxes = Array.from(routeSelector.querySelectorAll('.route-export-box:checked'));
+    const selectedIds = selectedBoxes.map(b => b.dataset.routeId);
+    const selectedRoutes = nativeParser.routes.filter(r => selectedIds.includes(r.id));
+
+    if (selectedRoutes.length === 0) {
+      alert('Por favor selecciona al menos una ruta marcando su casilla [✓] para guardarla.');
+      return;
+    }
+
+    const firstRoute = selectedRoutes[0];
+    const firstRoutePoints = nativeParser.pointsByRoute.get(firstRoute.id) || [];
+    const dateSlug = extractRouteDateSlug(firstRoute, firstRoutePoints);
+
+    cursorCoords.textContent = `⏳ Empaquetando ${selectedRoutes.length} rutas separadas en archivo ZIP...`;
+    const zip = new JSZip();
+    const usedNames = new Set();
+
+    selectedRoutes.forEach((r, idx) => {
+      const gpxXml = nativeParser.exportRouteToGpx(r.id, r.name);
+      if (gpxXml) {
+        let baseName = sanitizeFilename(r.name, `ruta_${idx + 1}`);
+        if (usedNames.has(baseName)) {
+          baseName = `${baseName}_${idx + 1}`;
+        }
+        usedNames.add(baseName);
+        zip.file(`${baseName}.gpx`, gpxXml);
+      }
+    });
+
+    const zipFileName = `rutas_${dateSlug}.zip`;
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(zipBlob, zipFileName);
+    cursorCoords.textContent = `✅ ${selectedRoutes.length} rutas guardadas por separado en ${zipFileName}`;
   }
 
   // Recopila datos de rutas elegidas, waypoints y fotos para exportación a Google Earth 3D
@@ -2023,11 +2042,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-  if (btnSaveSelectedRoutes) {
-    btnSaveSelectedRoutes.addEventListener('click', () => saveSelectedRoutes(false));
+  if (btnSaveCombinedRoute) {
+    btnSaveCombinedRoute.addEventListener('click', saveCombinedRoute);
   }
   if (btnSaveSelectedZip) {
-    btnSaveSelectedZip.addEventListener('click', () => saveSelectedRoutes(true));
+    btnSaveSelectedZip.addEventListener('click', saveSelectedRoutesZip);
   }
   if (btnSaveSelectedKml) {
     btnSaveSelectedKml.addEventListener('click', saveSelectedKml);

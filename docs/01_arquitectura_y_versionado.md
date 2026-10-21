@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.6-alpha`
+- **Versión Actual**: `v1.0.7-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,13 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.7-alpha` (2026-10-21)
+- **Unificación de Rutas en GPX Único y Empaquetado ZIP Nombrado por Fecha de Primera Ruta**:
+  - **Botón `[🔗 Unir en Una Sola Ruta (.GPX)]`**: Unifica todas las rutas marcadas en un único archivo estándar GPX 1.1 multisegmento (`<trkseg>`) preservando la discontinuidad o continuidad de tramos (`src/components/gpx-parser.js` -> `createCombinedGpxXml`).
+  - **Botón `[📦 ZIP Rutas Separadas]`**: Empaqueta cada ruta seleccionada de forma independiente en su propio archivo `.gpx` dentro de un `.ZIP` nombrado automáticamente con la fecha de la primera ruta (`rutas_YYYY-MM-DD.zip`).
+  - **Extractor Táctico de Fechas (`extractRouteDateSlug`)**: Detección cronológica precisa a partir de `startTime`, `time`/`timestamp` de los puntos o metadatos de nombre.
+  - **Suite de Pruebas**: 2 nuevas pruebas unitarias en `tests/gpx-tools.test.js` para validación de XML unificado y extracción de fechas (24/24 pruebas totales exitosas).
 
 ### `v1.0.6-alpha` (2026-10-21)
 - **Publicación y Disponibilidad Directa de Ejecutables en Git y GitHub (`release/`)**:
