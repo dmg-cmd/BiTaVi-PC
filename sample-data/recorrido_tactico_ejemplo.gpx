@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="BiTaVi Android Tracker" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Recorrido Táctico BiTaVi - Demostración</name>
+    <desc>Ruta de prueba táctica con puntos de control y telemetría de altitud</desc>
+    <time>2026-08-28T04:00:00Z</time>
+  </metadata>
+  <wpt lat="-34.6037" lon="-58.3816">
+    <name>Punto Alpha - Base</name>
+    <ele>25.0</ele>
+  </wpt>
+  <wpt lat="-34.6080" lon="-58.3720">
+    <name>Punto Bravo - Punto de Observación</name>
+    <ele>22.0</ele>
+  </wpt>
+  <trk>
+    <name>Track Principal BiTaVi</name>
+    <trkseg>
+      <trkpt lat="-34.6037" lon="-58.3816"><ele>25.0</ele><time>2026-08-28T04:00:00Z</time></trkpt>
+      <trkpt lat="-34.6045" lon="-58.3790"><ele>24.5</ele><time>2026-08-28T04:02:00Z</time></trkpt>
+      <trkpt lat="-34.6052" lon="-58.3765"><ele>23.8</ele><time>2026-08-28T04:05:00Z</time></trkpt>
+      <trkpt lat="-34.6061" lon="-58.3740"><ele>23.0</ele><time>2026-08-28T04:08:00Z</time></trkpt>
+      <trkpt lat="-34.6075" lon="-58.3728"><ele>22.4</ele><time>2026-08-28T04:11:00Z</time></trkpt>
+      <trkpt lat="-34.6080" lon="-58.3720"><ele>22.0</ele><time>2026-08-28T04:15:00Z</time></trkpt>
+      <trkpt lat="-34.6095" lon="-58.3695"><ele>20.5</ele><time>2026-08-28T04:18:00Z</time></trkpt>
+      <trkpt lat="-34.6110" lon="-58.3680"><ele>18.0</ele><time>2026-08-28T04:22:00Z</time></trkpt>
+      <trkpt lat="-34.6125" lon="-58.3665"><ele>15.2</ele><time>2026-08-28T04:25:00Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

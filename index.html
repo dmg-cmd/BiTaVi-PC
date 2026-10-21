@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BiTaVi - Bitácora Táctica de Viaje</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./src/styles/main.css" />
+  <link rel="stylesheet" href="./src/styles/map.css" />
+</head>
+<body class="tactical-dark">
+  <div id="app" class="app-layout">
+    <!-- Top Tactical Navigation / HUD Bar -->
+    <header class="tactical-header">
+      <div class="header-left">
+        <div class="logo-badge">
+          <span class="pulse-indicator"></span>
+          <span class="logo-icon">🧭</span>
+          <div class="logo-text">
+            <div class="title-row">
+              <h1 class="app-title">BiTaVi</h1>
+              <span class="version-tag">v0.5.10-alpha</span>
+            </div>
+            <span class="app-subtitle">BITÁCORA TÁCTICA DE VIAJE</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <!-- Search Box for Cities / Places -->
+        <div class="search-container">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-input" placeholder="Buscar lugar, ruta, waypoint o foto..." autocomplete="off" />
+            <button id="btn-search-clear" class="search-clear-btn hidden">&times;</button>
+          </div>
+          <div id="search-results" class="search-results-dropdown hidden"></div>
+        </div>
+
+        <!-- Live GPS Telemetry Box -->
+        <div class="telemetry-bar">
+          <div class="telemetry-item">
+            <span class="label">LAT:</span>
+            <span id="telemetry-lat" class="val monospace">--.------°</span>
+          </div>
+          <div class="telemetry-divider"></div>
+          <div class="telemetry-item">
+            <span class="label">LNG:</span>
+            <span id="telemetry-lng" class="val monospace">--.------°</span>
+          </div>
+          <div class="telemetry-divider"></div>
+          <div class="telemetry-item">
+            <span class="label">ZOOM:</span>
+            <span id="telemetry-zoom" class="val monospace">--</span>
+          </div>
+          <div class="telemetry-divider"></div>
+          <div class="telemetry-item">
+            <span class="label">PRECISIÓN:</span>
+            <span id="telemetry-acc" class="val monospace">-- m</span>
+          </div>
+          <div class="telemetry-divider"></div>
+          <div class="telemetry-item">
+            <span class="label">DATUM:</span>
+            <span class="val monospace highlight">WGS84</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button id="btn-locate" class="tactical-btn highlight-btn" title="Detectar posición por GPS">
+          <span class="btn-icon">🎯</span>
+          <span class="btn-label">GPS AUTO</span>
+        </button>
+        <button id="btn-set-manual" class="tactical-btn" title="Fijar mi ubicación haciendo clic en el mapa">
+          <span class="btn-icon">📍</span>
+          <span class="btn-label">FIJAR AQUÍ</span>
+        </button>
+        <button id="btn-toggle-sidebar" class="tactical-btn" title="Alternar panel lateral">
+          <span class="btn-icon">📊</span>
+          <span class="btn-label">PANEL</span>
+        </button>
+        <button id="btn-toggle-photos" class="tactical-btn" title="Mostrar fotos conectadas al mapa">
+          <span class="btn-icon">📷</span>
+          <span class="btn-label">FOTOS</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace: Map Container + Floating HUD Panels -->
+    <main class="main-container">
+      <!-- Leaflet Map Container -->
+      <div id="map" class="map-viewport"></div>
+
+      <!-- Tactical Crosshair Center Target Overlay -->
+      <div class="map-crosshair" pointer-events="none">
+        <div class="crosshair-h"></div>
+        <div class="crosshair-v"></div>
+        <div class="crosshair-dot"></div>
+      </div>
+
+      <!-- Collapsible Tactical Control Sidebar -->
+      <aside id="tactical-sidebar" class="tactical-sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-title">
+            <span class="icon">🛰️</span>
+            <h3>CENTRO DE MANDO</h3>
+          </div>
+          <span class="sidebar-status-tag">LISTO</span>
+        </div>
+
+        <div class="sidebar-scrollable">
+          <!-- Accordion 1: Open Free Map Layers -->
+          <section class="panel-section">
+            <div class="section-title">
+              <span class="badge-num">01</span>
+              <h4>CAPAS CARTOGRÁFICAS LIBRES</h4>
+            </div>
+            <div class="layer-selector-grid">
+              <button class="layer-card active" data-layer="osm">
+                <div class="layer-preview preview-osm"></div>
+                <div class="layer-info">
+                  <span class="layer-name">OpenStreetMap</span>
+                  <span class="layer-source">OSM Standard (100% Libre)</span>
+                </div>
+              </button>
+              <button class="layer-card" data-layer="topo">
+                <div class="layer-preview preview-topo"></div>
+                <div class="layer-info">
+                  <span class="layer-name">Topográfico</span>
+                  <span class="layer-source">OpenTopoMap Libre</span>
+                </div>
+              </button>
+              <button class="layer-card" data-layer="satellite">
+                <div class="layer-preview preview-sat"></div>
+                <div class="layer-info">
+                  <span class="layer-name">Satelital</span>
+                  <span class="layer-source">Esri World Imagery</span>
+                </div>
+              </button>
+              <button class="layer-card" data-layer="cyclosm">
+                <div class="layer-preview preview-dark"></div>
+                <div class="layer-info">
+                  <span class="layer-name">Ciclo & Senderismo</span>
+                  <span class="layer-source">CyclOSM Libre</span>
+                </div>
+              </button>
+              <button class="layer-card" data-layer="dark">
+                <div class="layer-preview preview-light"></div>
+                <div class="layer-info">
+                  <span class="layer-name">Táctico Oscuro</span>
+                  <span class="layer-source">OSM Nocturno (100% Libre)</span>
+                </div>
+              </button>
+            </div>
+          </section>
+
+          <!-- Accordion 2: Data & Backup Importer -->
+          <section class="panel-section">
+            <div class="section-title">
+              <span class="badge-num">02</span>
+              <h4>CARGA DE BACKUP Y DATOS</h4>
+            </div>
+            <div class="upload-dropzone" id="dropzone">
+              <input type="file" id="file-input" multiple accept=".zip,.gpx,.kml,.geojson,.json,.txt,image/*,.jpg,.jpeg,.png,.heic,.webp" style="display: none;" />
+              <div class="dropzone-inner">
+                <div class="dropzone-icon">📦</div>
+                <p class="dropzone-text">Arrastra el archivo <strong>.ZIP de Backup</strong> (o archivos <strong>.TXT / .GPX / Fotos</strong>)</p>
+                <span class="dropzone-sub">o archivos individuales <strong>.GPX</strong> y <strong>Fotos</strong></span>
+                <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; flex-wrap: wrap;">
+                  <button type="button" class="tactical-btn-sm" id="btn-browse-files">📂 Explorar Archivos</button>
+                  <button type="button" class="tactical-btn-sm highlight-btn" id="btn-browse-folder" title="Conectar carpeta local o sincronizada por Google Drive en PC para listar y seleccionar backups">📁 Conectar Carpeta (Drive / PC)</button>
+                  <button type="button" class="tactical-btn-sm" id="btn-load-sample-zip">⚡ Cargar Demo ZIP</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Indicador de Carpeta Conectada y Acceso a Backups -->
+            <div id="connected-folder-bar" class="hidden" style="margin-top: 0.5rem; background: rgba(16, 185, 129, 0.12); border: 1px solid var(--accent-emerald); border-radius: 4px; padding: 0.4rem 0.6rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.68rem;">
+              <div style="display: flex; align-items: center; gap: 0.4rem; overflow: hidden; margin-right: 0.5rem;">
+                <span style="font-size: 0.85rem;">📁</span>
+                <div style="display: flex; flex-direction: column; overflow: hidden;">
+                  <span id="connected-folder-label" class="monospace" style="color: #fff; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Carpeta Conectada</span>
+                  <span id="connected-folder-stats" style="font-size: 0.62rem; color: var(--accent-emerald);">0 backups disponibles</span>
+                </div>
+              </div>
+              <button type="button" id="btn-show-folder-backups" class="tactical-btn-sm highlight-btn" style="padding: 3px 8px; font-size: 0.65rem; flex-shrink: 0;">Ver Backups</button>
+            </div>
+
+            <!-- Google Drive Connection Module -->
+            <div class="gdrive-bridge-card clickable" id="btn-open-gdrive-modal">
+              <div class="gdrive-icon">☁️</div>
+              <div class="gdrive-info">
+                <span class="gdrive-title">Google Drive Conexión</span>
+                <span class="gdrive-desc">Conectar cuenta de Google Drive para listar y descargar backups automáticamente.</span>
+              </div>
+              <span class="badge-action">CONECTAR</span>
+            </div>
+          </section>
+
+          <!-- Accordion 3: Active Route Telemetry -->
+          <section class="panel-section" id="section-route-stats">
+            <div class="section-title">
+              <span class="badge-num">03</span>
+              <h4>TELEMETRÍA DE RUTAS Y PUNTOS</h4>
+            </div>
+
+            <!-- Mostrar / Ocultar / Gestionar Rutas -->
+            <div id="route-select-wrapper" class="hidden" style="margin-bottom: 0.75rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label style="font-size: 0.62rem; color: var(--text-dark); font-weight: 700;">GESTIÓN Y SELECCIÓN DE RUTAS:</label>
+                <button type="button" id="btn-add-route" class="tactical-btn-sm" style="padding: 2px 7px; font-size: 0.62rem;" title="Cargar otra ruta GPX o KML sin borrar las existentes">➕ Agregar Ruta</button>
+              </div>
+              <input type="file" id="route-file-add-input" accept=".gpx,.kml,.txt" multiple style="display: none;" />
+              <div id="route-selector" class="route-checklist"></div>
+
+              <!-- Barra de guardado y exportación de rutas elegidas con nombres personalizados -->
+              <div id="route-export-bar" class="route-export-bar" style="margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;">
+                <button type="button" id="btn-save-selected-routes" class="tactical-btn-sm accent" style="flex: 1; padding: 4px 6px; font-size: 0.66rem;" title="Descargar las rutas elegidas en archivos GPX independientes con sus nombres">💾 Guardar Elegidas (.GPX)</button>
+                <button type="button" id="btn-save-selected-zip" class="tactical-btn-sm" style="padding: 4px 6px; font-size: 0.66rem;" title="Empaquetar todas las rutas elegidas separadas en un archivo ZIP">📦 ZIP Separadas</button>
+              </div>
+            </div>
+
+            <div class="route-stats-grid">
+              <div class="stat-card">
+                <span class="stat-label">DISTANCIA TOTAL</span>
+                <span class="stat-value" id="stat-distance">0.00 km</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">PUNTOS GPS</span>
+                <span class="stat-value" id="stat-points">0</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">RUTAS / MARCADORES</span>
+                <span class="stat-value" id="stat-elevation">0 / 0</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">FOTOS EN RUTA</span>
+                <span class="stat-value" id="stat-photos-count">0</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">FECHA RUTA</span>
+                <span class="stat-value" id="stat-route-date">--</span>
+              </div>
+            </div>
+            <div id="route-actions" class="route-actions hidden">
+              <button id="btn-fit-route" class="tactical-btn-sm">Enfocar Rutas</button>
+              <button id="btn-add-route-action" class="tactical-btn-sm accent" title="Agregar otra ruta GPX al mapa">➕ Agregar Ruta</button>
+              <button id="btn-clear-route" class="tactical-btn-sm danger">Limpiar Mapa</button>
+            </div>
+          </section>
+
+          <!-- Accordion 4: Geotagged Photos Gallery -->
+          <section class="panel-section">
+            <div class="section-title">
+              <span class="badge-num">04</span>
+              <h4>FOTOGRAFÍAS GEOLOCALIZADAS</h4>
+            </div>
+            <div id="photos-container" class="photos-grid-empty">
+              <span class="empty-icon">📷</span>
+              <p>No hay fotos cargadas aún.</p>
+              <span class="empty-hint">Al cargar fotos con GPS (EXIF) se posicionarán como marcadores exactos en el mapa.</span>
+            </div>
+            <div id="photos-list" class="photos-list hidden"></div>
+            <button id="btn-share-card" class="tactical-btn-sm accent full-width hidden" title="Generar tarjeta táctica para compartir">🛰️ Compartir Tarjeta</button>
+          </section>
+
+          <!-- Accordion 5: ZIP Backup Structural Analysis -->
+          <section class="panel-section" id="section-zip-analysis">
+            <div class="section-title">
+              <span class="badge-num">05</span>
+              <h4>ANÁLISIS ESTRUCTURAL DE BACKUP (ZIP)</h4>
+            </div>
+            <div id="zip-analysis-empty" class="photos-grid-empty">
+              <span class="empty-icon">🔍</span>
+              <p>Ningún archivo ZIP inspeccionado.</p>
+              <span class="empty-hint">Al cargar un ZIP de Drive o local se analizará su árbol de archivos, metadatos y configuración interna.</span>
+            </div>
+            <div id="zip-analysis-content" class="zip-analysis-details hidden">
+              <div class="zip-header-card">
+                <span class="zip-filename" id="zip-info-name">backup.zip</span>
+                <span class="zip-filesize monospace" id="zip-info-size">0.0 MB</span>
+              </div>
+              
+              <!-- Metadatos de la App si existen -->
+              <div id="zip-metadata-box" class="zip-meta-box hidden">
+                <span class="meta-title">📋 METADATOS DE VIAJE (ANDROID):</span>
+                <pre id="zip-meta-json" class="monospace"></pre>
+              </div>
+
+              <!-- Resumen de Contenidos -->
+              <div class="zip-summary-grid">
+                <div class="z-item">
+                  <span class="z-label">TOTAL ARCHIVOS</span>
+                  <span class="z-val monospace" id="zip-stat-total">0</span>
+                </div>
+                <div class="z-item">
+                  <span class="z-label">TRACKS GPX</span>
+                  <span class="z-val monospace" id="zip-stat-gpx">0</span>
+                </div>
+                <div class="z-item">
+                  <span class="z-label">FOTOS</span>
+                  <span class="z-val monospace" id="zip-stat-photos">0</span>
+                </div>
+                <div class="z-item">
+                  <span class="z-label">CONFIG / JSON</span>
+                  <span class="z-val monospace" id="zip-stat-configs">0</span>
+                </div>
+              </div>
+
+              <!-- Lista Detallada de Archivos Internos -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+                <span class="meta-title" style="margin: 0;">📂 ESTRUCTURA INTERNA DEL ZIP:</span>
+                <div style="display: flex; gap: 0.35rem;">
+                  <button id="btn-copy-zip-report" class="tactical-btn-sm" title="Copiar informe técnico al portapapeles para el asistente">📋 Copiar Reporte</button>
+                  <button id="btn-download-zip-report" class="tactical-btn-sm highlight-btn" title="Descargar reporte en archivo .JSON">💾 Descargar</button>
+                </div>
+              </div>
+              <div id="zip-files-tree" class="zip-files-tree monospace"></div>
+            </div>
+          </section>
+        </div>
+      </aside>
+
+      <!-- Bottom Floating Coordinate / Status Pill -->
+      <div class="floating-status-pill">
+        <span class="status-indicator-dot online"></span>
+        <span id="cursor-coords" class="monospace">Mueve el cursor sobre el mapa</span>
+      </div>
+
+      <!-- Route Date Floating Badge (over the map) -->
+      <div id="route-date-badge" class="route-date-badge hidden">
+        <span class="rd-icon">📅</span>
+        <span id="route-date-text" class="rd-text monospace">--</span>
+      </div>
+
+      <!-- Tactical Session Restore Banner (over the map) -->
+      <div id="session-restore-banner" class="session-restore-banner hidden">
+        <div class="session-banner-content">
+          <div class="session-banner-info">
+            <span class="session-icon">💾</span>
+            <div class="session-text-group">
+              <span class="session-tag">EXPEDICIÓN EN MEMORIA LOCAL</span>
+              <span id="session-banner-text" class="session-title monospace">Sesión previa detectada: --</span>
+            </div>
+          </div>
+          <div class="session-banner-actions">
+            <button id="btn-restore-session" class="tactical-btn highlight-btn">
+              <span class="btn-icon">⚡</span>
+              <span>RESTAURAR EXPEDICIÓN</span>
+            </button>
+            <button id="btn-discard-session" class="tactical-btn">
+              <span class="btn-icon">&times;</span>
+              <span>DESCARTAR</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Fullscreen Photo Modal / Lightbox -->
+    <div id="photo-modal" class="photo-modal hidden">
+      <div class="photo-modal-backdrop" id="modal-backdrop"></div>
+      <div class="photo-modal-content photo-lightbox">
+        <button class="modal-close-btn" id="modal-close" title="Cerrar">&times;</button>
+        <div class="modal-body">
+          <div class="modal-image-wrapper">
+            <img id="modal-img" src="" alt="Fotografía táctica" />
+          </div>
+        </div>
+        <div class="modal-footer-bar">
+          <div class="modal-caption">
+            <span id="modal-photo-name">foto.jpg</span>
+            <span id="modal-photo-date" class="modal-date">--/--/---- --:--</span>
+          </div>
+          <button id="modal-jump-btn" class="tactical-btn highlight-btn">
+            🎯 CENTRAR EN EL MAPA
+          </button>
+          <button id="modal-set-location-btn" class="tactical-btn accent hidden">
+            📍 FIJAR EN EL MAPA
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Google Drive Sync Modal -->
+    <div id="gdrive-modal" class="photo-modal hidden">
+      <div class="photo-modal-backdrop" id="gdrive-modal-backdrop"></div>
+      <div class="photo-modal-content" style="max-width: 620px;">
+        <button class="modal-close-btn" id="gdrive-modal-close" title="Cerrar">&times;</button>
+        <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div class="sidebar-title">
+            <span class="icon">☁️</span>
+            <h3>SINCRONIZACIÓN CON GOOGLE DRIVE</h3>
+          </div>
+          <p style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4;">
+            Conecta tu cuenta de Google Drive para explorar y descargar automáticamente los paquetes <strong>.ZIP</strong> de backup generados por la app BiTaVi Android.
+          </p>
+
+          <!-- Credenciales OAuth2 de Google Cloud -->
+          <div class="panel-section" style="background: rgba(8, 12, 20, 0.8);">
+            <div class="section-title">
+              <span class="badge-num">01</span>
+              <h4>CREDENCIALES GOOGLE OAUTH 2.0</h4>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <div>
+                <label style="font-size: 0.65rem; color: var(--text-dark); display: block; font-weight: 700; margin-bottom: 2px;">CLIENT ID (GOOGLE CLOUD):</label>
+                <input type="text" id="gdrive-client-id" placeholder="ej. 123456789-xxxx.apps.googleusercontent.com" class="monospace" style="width: 100%; background: #070a12; border: 1px solid var(--border-color); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.72rem;" />
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
+                <span style="font-size: 0.62rem; color: var(--text-dark);">Se guarda de forma segura en tu navegador (localStorage).</span>
+                <button id="btn-save-gdrive-creds" class="tactical-btn-sm">Guardar Credenciales</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botón de Conexión & Estado -->
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <button id="btn-gdrive-login" class="tactical-btn highlight-btn" style="flex: 1; justify-content: center;">
+              🔑 CONECTAR CON GOOGLE DRIVE
+            </button>
+          </div>
+
+          <div id="gdrive-status-msg" class="monospace" style="font-size: 0.72rem; color: var(--accent-cyan);"></div>
+
+          <!-- Lista de Backups encontrados en Drive -->
+          <div id="gdrive-files-container" class="hidden">
+            <span class="meta-title" style="display: block; margin-bottom: 0.5rem;">📦 BACKUPS ENCONTRADOS EN TU DRIVE:</span>
+            <div id="gdrive-files-list" class="photos-list" style="max-height: 180px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Selector de Backups de Carpeta Conectada (Drive / PC) -->
+    <div id="folder-backup-modal" class="photo-modal hidden">
+      <div class="photo-modal-backdrop" id="folder-modal-backdrop"></div>
+      <div class="photo-modal-content" style="max-width: 640px;">
+        <button class="modal-close-btn" id="folder-modal-close" title="Cerrar">&times;</button>
+        <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div class="sidebar-title">
+            <span class="icon">📁</span>
+            <h3>BACKUPS EN CARPETA CONECTADA</h3>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(8, 12, 20, 0.8); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.6rem 0.8rem;">
+            <div style="display: flex; flex-direction: column; overflow: hidden; gap: 2px;">
+              <span style="font-size: 0.62rem; color: var(--text-dark); font-weight: 700;">CARPETA ACTIVA:</span>
+              <span id="folder-modal-dir-name" class="monospace" style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">-</span>
+              <span id="folder-modal-scan-stats" style="font-size: 0.62rem; color: var(--accent-emerald);">0 archivos detectados</span>
+            </div>
+            <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+              <button id="btn-modal-pick-direct-zip" class="tactical-btn-sm highlight-btn" title="Si prefieres, selecciona directamente el archivo .ZIP de backup con el diálogo de archivos">📦 Seleccionar .ZIP Directo</button>
+              <button id="btn-folder-load-all" class="tactical-btn-sm" title="Cargar todos los archivos de esta carpeta juntos como una expedición">⚡ Cargar Carpeta Completa</button>
+              <button id="btn-folder-change-dir" class="tactical-btn-sm" style="flex-shrink: 0;">🔄 Cambiar Carpeta</button>
+            </div>
+          </div>
+
+          <!-- Filtros de categoría rápida y búsqueda -->
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
+              <button type="button" class="tactical-btn-sm folder-tab-btn active" data-filter="all">Todos (<span id="count-tab-all">0</span>)</button>
+              <button type="button" class="tactical-btn-sm folder-tab-btn" data-filter="zip">📦 Backups ZIP (<span id="count-tab-zip">0</span>)</button>
+              <button type="button" class="tactical-btn-sm folder-tab-btn" data-filter="route">🗺️ Rutas GPX / TXT (<span id="count-tab-route">0</span>)</button>
+              <button type="button" class="tactical-btn-sm folder-tab-btn" data-filter="photo">📷 Fotos (<span id="count-tab-photo">0</span>)</button>
+            </div>
+            <div id="folder-search-box" style="position: relative;">
+              <input type="text" id="folder-backup-filter" placeholder="🔍 Filtrar por fecha, nombre o subcarpeta..." class="monospace" style="width: 100%; background: #070a12; border: 1px solid var(--border-color); color: #fff; padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.72rem;" />
+            </div>
+          </div>
+
+          <!-- Lista de Backups encontrados en la carpeta -->
+          <div id="folder-backups-container">
+            <div id="folder-backups-list" class="photos-list" style="max-height: 320px; overflow-y: auto;"></div>
+          </div>
+
+          <!-- Mensaje cuando no hay archivos -->
+          <div id="folder-empty-msg" class="hidden monospace" style="text-align: center; padding: 1.5rem; background: rgba(15, 23, 42, 0.5); border: 1px dashed var(--border-color); border-radius: 6px; font-size: 0.75rem; color: var(--text-muted);">
+            ⚠️ No se encontraron archivos de backup reconocibles en esta carpeta.<br>
+            <span style="font-size: 0.68rem; color: var(--text-dark); margin-top: 6px; display: block;">
+              Los archivos temporales y del sistema han sido filtrados. ¿Tienes el archivo comprimido?
+              <br><br>
+              <button type="button" id="btn-empty-pick-zip" class="tactical-btn-sm highlight-btn" style="margin: 0 auto;">📂 Seleccionar Archivo .ZIP Manualmente</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tactical Download & Processing Progress Overlay -->
+    <div id="tactical-progress-overlay" class="photo-modal hidden" style="z-index: 99999;">
+      <div class="photo-modal-backdrop" style="backdrop-filter: blur(8px); background: rgba(3, 7, 18, 0.85);"></div>
+      <div class="photo-modal-content" style="max-width: 460px; background: rgba(11, 17, 33, 0.95); border: 1px solid var(--accent-cyan); box-shadow: 0 0 35px rgba(0, 240, 255, 0.25);">
+        <div style="padding: 1.75rem; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1.25rem;">
+          
+          <!-- Radar / Spinner Pulse -->
+          <div class="progress-radar-circle">
+            <div class="radar-sweep-beam"></div>
+            <span class="radar-center-icon">📡</span>
+          </div>
+
+          <!-- Titles -->
+          <div>
+            <span class="version-tag" style="font-size: 0.65rem; margin-bottom: 0.4rem; display: inline-block;">TELEMETRÍA EN VIVO</span>
+            <h3 id="progress-title" style="font-family: var(--font-display); font-size: 1.1rem; color: #fff; letter-spacing: 1px;">DESCARGANDO DESDE GOOGLE DRIVE</h3>
+            <span id="progress-filename" class="monospace" style="font-size: 0.75rem; color: var(--accent-cyan); margin-top: 4px; display: block;">backup.zip</span>
+          </div>
+
+          <!-- Progress Bar & Percent -->
+          <div style="width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.4rem;">
+              <span id="progress-status-label" class="monospace" style="font-size: 0.72rem; color: var(--text-muted);">Descargando paquete...</span>
+              <span id="progress-percent-val" class="monospace" style="font-size: 1.2rem; font-weight: 800; color: var(--accent-cyan);">0%</span>
+            </div>
+            
+            <div class="tactical-progress-track">
+              <div id="progress-bar-fill" class="tactical-progress-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <!-- Micro Details (MBs, speed, current file) -->
+          <div id="progress-detail-text" class="monospace" style="font-size: 0.68rem; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 0.35rem 0.75rem; border-radius: 4px; width: 100%; border: 1px dashed rgba(255,255,255,0.1);">
+            Iniciando transferencia segura...
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

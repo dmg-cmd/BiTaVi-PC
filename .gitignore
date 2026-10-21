@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+package-lock.json.bak
+
+# Compilación y paquetes de distribución
+dist/
+release/
+
+# Logs y entornos
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.*
+!.env.example
+
+# Archivos del sistema e IDE
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# ========================================================
+# EXCLUSIÓN ESTRICTA DE BACKUPS PERSONALES / DE CELULAR
+# ========================================================
+# Ignorar cualquier archivo comprimido o backup en cualquier carpeta
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+backup_*
+backup*
+
+# Excepción ÚNICA: Solo los datos de prueba y ejemplo oficiales
+!sample-data/
+sample-data/*
+!sample-data/backup_ejemplo_bitavi.zip
+!sample-data/recorrido_tactico_ejemplo.gpx
