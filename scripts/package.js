@@ -95,6 +95,28 @@ async function buildPackages() {
   fs.writeFileSync(linuxOutPath, linuxBuffer);
   console.log(`   -> Paquete Linux creado: release/BiTaVi-PC-v${version}-Linux.zip (${(linuxBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
 
+  // 4. Copiar ejecutables nativos de Tauri si existen
+  console.log('\n4. Verificando binarios ejecutables nativos...');
+  const nsisDir = path.join(ROOT, 'src-tauri', 'target', 'release', 'bundle', 'nsis');
+  if (fs.existsSync(nsisDir)) {
+    const files = fs.readdirSync(nsisDir).filter(f => f.endsWith('.exe'));
+    for (const f of files) {
+      const srcFile = path.join(nsisDir, f);
+      const destFile = path.join(releaseDir, f);
+      fs.copyFileSync(srcFile, destFile);
+      const sizeMb = (fs.statSync(destFile).size / 1024 / 1024).toFixed(2);
+      console.log(`   -> Ejecutable de instalacion copiado: release/${f} (${sizeMb} MB)`);
+    }
+  }
+
+  const standaloneExe = path.join(ROOT, 'src-tauri', 'target', 'release', 'bitavi-pc.exe');
+  if (fs.existsSync(standaloneExe)) {
+    const destStandalone = path.join(releaseDir, `BiTaVi-v${version}-portable.exe`);
+    fs.copyFileSync(standaloneExe, destStandalone);
+    const sizeMb = (fs.statSync(destStandalone).size / 1024 / 1024).toFixed(2);
+    console.log(`   -> Ejecutable portable copiado: release/BiTaVi-v${version}-portable.exe (${sizeMb} MB)`);
+  }
+
   console.log('\n========================================================');
   console.log('  Compilacion y empaquetado completados exitosamente.');
   console.log(`  Archivos listos en: ${releaseDir}`);

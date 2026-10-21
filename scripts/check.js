@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const EXCLUDE_DIRS = new Set(['node_modules', 'dist', '.git', '.agents']);
+const EXCLUDE_DIRS = new Set(['node_modules', 'dist', '.git', '.agents', 'target', 'src-tauri', 'release']);
 
 function collectJs(dir, acc = []) {
   for (const entry of readdirSync(dir)) {

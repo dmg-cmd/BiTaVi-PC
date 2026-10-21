@@ -1,8 +1,9 @@
-name: BiTaVi PC - Compilación y Empaquetado Multiplataforma
+name: BiTaVi PC - Compilación, Empaquetado y Releases
 
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -40,9 +41,37 @@ jobs:
       - name: Generar paquetes de distribución
         run: npm run package
 
-      - name: Subir artefactos de distribución
+      - name: Subir artefactos de compilación
         uses: actions/upload-artifact@v4
         with:
-          name: bitavi-pc-paquetes-${{ matrix.os }}
-          path: release/*.zip
-          retention-days: 14
+          name: bitavi-pc-${{ matrix.os }}
+          path: |
+            release/*.zip
+            release/*.exe
+          retention-days: 30
+
+  publish-release:
+    name: Publicar Release Oficial en GitHub
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      - name: Descargar todos los paquetes y ejecutables
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bitavi-pc-*
+          merge-multiple: true
+          path: release-dist
+
+      - name: Publicar en GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-dist/*.zip
+            release-dist/*.exe
+          generate_release_notes: true

@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.5-alpha`
+- **Versión Actual**: `v1.0.6-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,13 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.6-alpha` (2026-10-21)
+- **Publicación y Disponibilidad Directa de Ejecutables en Git y GitHub (`release/`)**:
+  - Inclusión oficial del directorio de distribución `release/` en el árbol de Git con instaladores y binarios portables (`BiTaVi-v1.0.6-alpha-setup.exe`, `BiTaVi-v1.0.6-alpha-portable.exe` y zips multiplataforma).
+  - Guía informativa de descargas directa en `release/README.md`.
+  - Integración de publicación automatizada en GitHub Actions (`.github/workflows/build.yml`) para creación de releases en GitHub con binarios adjuntos.
+  - Ajuste de `.gitignore` para permitir paquetes de distribución sin comprometer la seguridad de respaldos personales.
 
 ### `v1.0.5-alpha` (2026-10-21)
 - **Empaquetado Nativo de Escritorio con Tauri v2 (`src-tauri/`)**:

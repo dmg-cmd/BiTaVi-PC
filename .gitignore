@@ -4,9 +4,12 @@ package-lock.json.bak
 
 # Compilación y paquetes de distribución
 dist/
-release/
 target/
 src-tauri/target/
+
+# Permitir paquetes de distribución y ejecutables oficiales en release/
+!release/
+!release/**
 
 # Logs y entornos
 *.log
@@ -38,7 +41,10 @@ desktop.ini
 backup_*
 backup*
 
-# Excepción ÚNICA: Solo los datos de prueba y ejemplo oficiales
+# Excepciones ÚNICAS: Paquetes oficiales en release/ y datos de prueba
+!release/
+!release/*
+!release/**/*
 !sample-data/
 sample-data/*
 !sample-data/backup_ejemplo_bitavi.zip
