@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.10-alpha`
+- **Versión Actual**: `v1.2.0-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,22 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.2.0-alpha` (2026-10-22)
+- **Importador Táctico de Jornada / Fotos del Día con Selector Visual y Previsualización Interactiva (Hito de Versión Media)**:
+  - **Selector Visual de Fotos de la Jornada (`#day-trip-modal`)**:
+    - Permite al usuario seleccionar una carpeta del día o de vacaciones conteniendo la ruta y las fotografías capturadas con el celular.
+    - Se genera una galería interactiva con miniaturas de alta calidad, hora de captura y estado de geolocalización de cada toma (`📍 GPS directo` o `⏱️ Se geolocalizará por la hora de la ruta`).
+    - Cada fotografía cuenta con una casilla de verificación individual para descartar tomas no deseadas (fotos borrosas, comprobantes o duplicadas) antes de incorporarlas al mapa.
+  - **Herramientas de Selección Rápida y Filtros**:
+    - Botones `[☑️ Marcar Todas]`, `[◻️ Desmarcar]` y filtro dinámico `[📍 Solo con GPS directo]`.
+    - Contador interactivo en tiempo real: *"X de Y fotos seleccionadas"*.
+  - **Opciones de Fusión e Ingesta Dual**:
+    - Botón `[🚀 Incorporar Selección a la Ruta]`: Dibuja el trazado del día, ubica las fotografías marcadas y actualiza la galería lateral.
+    - Botón `[⚡ Incorporar Todo Directo]`: Permite subir todas las fotos y rutas de la carpeta sin filtrar en 1 solo clic.
+  - **Acceso Directo Multi-Punto**:
+    - Botón destacado en el dropzone (`#btn-import-day-trip`), botón en la gestión de rutas (`#btn-add-day-trip`) y acceso directo en el menú superior (`📁 Archivo -> 📸 Cargar Fotos y Ruta del Día...`).
+  - **Hito de Versión Media**: Al alcanzar el tope de 10 en `1.1.10-alpha`, el dígito medio incrementa a `2` y el derecho vuelve a `0` (`v1.2.0-alpha`).
 
 ### `v1.1.10-alpha` (2026-10-22)
 - **Expansión Vertical Completa de la Lista de Rutas, Modo Fichas Tácticas Detalladas y Telemetría por Día**:

@@ -24,7 +24,7 @@
           <div class="logo-text">
             <div class="title-row">
               <h1 class="app-title">BiTaVi</h1>
-              <span class="version-tag">v1.1.10-alpha</span>
+              <span class="version-tag">v1.2.0-alpha</span>
             </div>
             <span class="app-subtitle">BITÁCORA TÁCTICA DE VIAJE</span>
           </div>
@@ -36,6 +36,7 @@
           <div class="top-menu-dropdown">
             <button type="button" class="top-menu-btn" data-menu="file" title="Opciones de archivo, carga y guardado">📁 Archivo ▾</button>
             <div class="top-menu-popup hidden" id="menu-popup-file">
+              <button type="button" class="menu-item" id="menu-action-import-day" style="color: var(--accent-cyan); font-weight: 700;"><span>📸</span> Cargar Fotos y Ruta del Día...</button>
               <button type="button" class="menu-item" id="menu-action-load-zip"><span>📦</span> Cargar Backup (.ZIP / Carpeta)</button>
               <button type="button" class="menu-item" id="menu-action-load-folder"><span>📂</span> Cargar Carpeta de Viaje (Descomprimida)</button>
               <button type="button" class="menu-item" id="menu-action-load-gpx"><span>🗺️</span> Cargar Rutas (.GPX / .JSON)</button>
@@ -218,6 +219,7 @@
                     <input type="checkbox" id="chk-group-by-day" checked style="cursor: pointer;" />
                     <span>📅 Agrupar por Día</span>
                   </label>
+                  <button type="button" id="btn-add-day-trip" class="tactical-btn-sm" style="padding: 2px 7px; font-size: 0.62rem; border-color: var(--accent-cyan); color: var(--accent-cyan); background: rgba(0, 240, 255, 0.1);" title="Cargar fotos del día y ruta con selector visual interactivo">📸 Fotos del Día</button>
                   <button type="button" id="btn-add-route" class="tactical-btn-sm" style="padding: 2px 7px; font-size: 0.62rem;" title="Cargar otra ruta GPX o KML sin borrar las existentes">➕ Agregar Ruta</button>
                 </div>
               </div>
@@ -297,13 +299,16 @@
             <div class="upload-dropzone" id="dropzone">
               <input type="file" id="file-input" multiple accept=".zip,.gpx,.kml,.geojson,.json,.txt,image/*,.jpg,.jpeg,.png,.heic,.webp" style="display: none;" />
               <input type="file" id="folder-input" webkitdirectory directory multiple style="display: none;" />
+              <input type="file" id="day-trip-folder-input" webkitdirectory directory multiple style="display: none;" />
+              <input type="file" id="day-trip-files-input" accept="image/*,.jpg,.jpeg,.png,.heic,.webp,.gpx,.json,.geojson,.txt,.kml" multiple style="display: none;" />
               <div class="dropzone-inner">
                 <div class="dropzone-icon">📦</div>
                 <p class="dropzone-text">Arrastra el archivo <strong>.ZIP de Backup</strong> (o archivos <strong>.JSON / .GPX / .TXT / Fotos</strong>)</p>
                 <span class="dropzone-sub">o una <strong>Carpeta Completa</strong> con rutas, favoritos y fotos</span>
                 <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; flex-wrap: wrap;">
+                  <button type="button" class="tactical-btn-sm highlight-btn" id="btn-import-day-trip" style="border-color: var(--accent-cyan); color: #fff; background: rgba(0, 240, 255, 0.18); font-weight: 700;" title="Seleccionar la carpeta con fotos y ruta del día para previsualizar y elegir qué fotos subir al mapa">📸 Cargar Fotos del Día y Ruta</button>
                   <button type="button" class="tactical-btn-sm" id="btn-browse-files">📄 Explorar Archivos</button>
-                  <button type="button" class="tactical-btn-sm highlight-btn" id="btn-upload-folder" title="Selecciona directamente la carpeta descomprimida del viaje (lee automáticamente ruta.json, favoritos.json y fotos)">📂 Cargar Carpeta de Viaje</button>
+                  <button type="button" class="tactical-btn-sm" id="btn-upload-folder" title="Selecciona directamente la carpeta descomprimida del viaje (lee automáticamente ruta.json, favoritos.json y fotos)">📂 Cargar Carpeta Completa</button>
                   <button type="button" class="tactical-btn-sm" id="btn-browse-folder" title="Conectar carpeta local o sincronizada por Google Drive en PC para listar y seleccionar backups">📁 Conectar Carpeta Drive</button>
                   <button type="button" class="tactical-btn-sm" id="btn-load-sample-zip">⚡ Cargar Demo ZIP</button>
                 </div>
@@ -670,6 +675,69 @@
               <button type="button" id="btn-empty-pick-zip" class="tactical-btn-sm highlight-btn" style="margin: 0 auto;">📂 Seleccionar Archivo .ZIP Manualmente</button>
             </span>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Selector e Importador Táctico de Jornada / Fotos del Día -->
+    <div id="day-trip-modal" class="photo-modal hidden" style="z-index: 9999;">
+      <div class="photo-modal-backdrop" id="day-trip-backdrop"></div>
+      <div class="photo-modal-content" style="max-width: 860px; width: 92vw; max-height: 90vh; display: flex; flex-direction: column;">
+        <button class="modal-close-btn" id="day-trip-close" title="Cerrar">&times;</button>
+        <div style="padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.85rem; height: 100%; overflow: hidden;">
+          
+          <!-- Encabezado Táctico -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span style="font-size: 1.6rem;">📸</span>
+              <div>
+                <h3 style="margin: 0; font-size: 1.05rem; color: var(--text-main); font-weight: 700; letter-spacing: 0.5px;">CARGAR JORNADA / FOTOS DEL DÍA</h3>
+                <span id="day-trip-folder-name" class="monospace" style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 600;">Carpeta seleccionada</span>
+              </div>
+            </div>
+            <!-- Resumen de detección -->
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <span id="day-trip-route-badge" class="badge" style="font-size: 0.65rem; color: var(--accent-amber); background: rgba(255, 179, 0, 0.1); border: 1px solid rgba(255, 179, 0, 0.3); padding: 3px 8px; border-radius: 4px;">🗺️ 0 rutas detectadas</span>
+              <span id="day-trip-photos-badge" class="badge" style="font-size: 0.65rem; color: var(--accent-cyan); background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.3); padding: 3px 8px; border-radius: 4px;">📷 0 fotos encontradas</span>
+            </div>
+          </div>
+
+          <!-- Barra de Herramientas y Filtros Rápidos -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; background: rgba(10, 15, 28, 0.85); border: 1px solid var(--border-color); padding: 0.45rem 0.75rem; border-radius: 6px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <button type="button" id="btn-day-select-all" class="tactical-btn-sm" style="padding: 3px 8px; font-size: 0.68rem;">☑️ Marcar Todas</button>
+              <button type="button" id="btn-day-deselect-all" class="tactical-btn-sm" style="padding: 3px 8px; font-size: 0.68rem;">◻️ Desmarcar</button>
+              <label style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; color: var(--text-light); cursor: pointer; margin-left: 6px;">
+                <input type="checkbox" id="chk-day-only-gps" style="cursor: pointer;" />
+                <span>📍 Solo con GPS directo</span>
+              </label>
+            </div>
+            <div>
+              <span id="day-trip-selection-count" class="monospace" style="font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700;">0 de 0 fotos seleccionadas</span>
+            </div>
+          </div>
+
+          <!-- Grilla visual de selección de fotos -->
+          <div id="day-trip-grid-container" style="flex: 1; overflow-y: auto; max-height: calc(90vh - 280px); min-height: 240px; padding-right: 4px;">
+            <div id="day-trip-photos-grid" class="day-trip-photos-grid">
+              <!-- Se puebla dinámicamente con las tarjetas de fotos -->
+            </div>
+            <!-- Estado vacío si no hay fotos -->
+            <div id="day-trip-empty-msg" class="hidden monospace" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-size: 0.78rem; background: rgba(0,0,0,0.25); border-radius: 6px; border: 1px dashed var(--border-color);">
+              📷 No se detectaron fotos en la carpeta seleccionada.<br>
+              <span style="font-size: 0.68rem; color: var(--accent-amber); display: block; margin-top: 4px;">Se cargará únicamente la traza de la ruta detectada.</span>
+            </div>
+          </div>
+
+          <!-- Pie del Modal con Acciones -->
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.75rem; flex-wrap: wrap; gap: 8px;">
+            <button type="button" id="btn-day-trip-cancel" class="tactical-btn-sm danger" style="padding: 6px 14px; font-size: 0.75rem;">✕ Cancelar</button>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" id="btn-day-trip-load-all" class="tactical-btn-sm" style="padding: 6px 12px; font-size: 0.75rem; border-color: var(--accent-amber); color: var(--accent-amber);" title="Subir todas las fotos y rutas de la carpeta sin filtrar">⚡ Incorporar Todo Directo</button>
+              <button type="button" id="btn-day-trip-confirm" class="tactical-btn highlight-btn" style="padding: 6px 16px; font-size: 0.8rem; font-weight: 700;" title="Incorporar la ruta y las fotos marcadas al mapa de BiTaVi">🚀 Incorporar Selección a la Ruta</button>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

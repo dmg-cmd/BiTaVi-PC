@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { BiTaViMap } from './components/map.js';
 import { GpxHandler, sanitizeFilename, downloadBlob, createCombinedGpxXml, extractRouteDateSlug, extractDateFromName, groupRoutesByDay } from './components/gpx-parser.js';
-import { PhotoHandler } from './components/photo-parser.js';
+import { PhotoHandler, esArchivoImagen, leerGpsFoto, leerMetadatosFoto } from './components/photo-parser.js';
 import { ZipBackupHandler } from './components/zip-loader.js';
 import { GeoSearch } from './components/search.js';
 import { GoogleDriveConnector } from './components/drive-connector.js';
@@ -58,6 +58,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnUploadFolder = document.getElementById('btn-upload-folder');
   const btnBrowseFolder = document.getElementById('btn-browse-folder');
   const btnLoadSampleZip = document.getElementById('btn-load-sample-zip');
+
+  // Importador de Jornada / Fotos del Día Elements (v1.2.0-alpha)
+  const btnImportDayTrip = document.getElementById('btn-import-day-trip');
+  const btnAddDayTrip = document.getElementById('btn-add-day-trip');
+  const dayTripFolderInput = document.getElementById('day-trip-folder-input');
+  const dayTripFilesInput = document.getElementById('day-trip-files-input');
+  const dayTripModal = document.getElementById('day-trip-modal');
+  const dayTripBackdrop = document.getElementById('day-trip-backdrop');
+  const dayTripClose = document.getElementById('day-trip-close');
+  const dayTripFolderName = document.getElementById('day-trip-folder-name');
+  const dayTripRouteBadge = document.getElementById('day-trip-route-badge');
+  const dayTripPhotosBadge = document.getElementById('day-trip-photos-badge');
+  const btnDaySelectAll = document.getElementById('btn-day-select-all');
+  const btnDayDeselectAll = document.getElementById('btn-day-deselect-all');
+  const chkDayOnlyGps = document.getElementById('chk-day-only-gps');
+  const dayTripSelectionCount = document.getElementById('day-trip-selection-count');
+  const dayTripPhotosGrid = document.getElementById('day-trip-photos-grid');
+  const dayTripEmptyMsg = document.getElementById('day-trip-empty-msg');
+  const btnDayTripCancel = document.getElementById('btn-day-trip-cancel');
+  const btnDayTripConfirm = document.getElementById('btn-day-trip-confirm');
+  const btnDayTripLoadAll = document.getElementById('btn-day-trip-load-all');
   
   // Google Drive Modal Elements
   const btnOpenGdriveModal = document.getElementById('btn-open-gdrive-modal');
@@ -1995,6 +2016,337 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ========================================================
+  // Importador Táctico de Jornada / Fotos del Día (v1.2.0-alpha)
+  // ========================================================
+  let currentDayTripCandidate = {
+    folderName: '',
+    routeFiles: [],
+    photoItems: []
+  };
+
+  function closeDayTripModal() {
+    if (dayTripModal) dayTripModal.classList.add('hidden');
+    if (currentDayTripCandidate && currentDayTripCandidate.photoItems) {
+      currentDayTripCandidate.photoItems.forEach(item => {
+        if (item.url && item.url.startsWith('blob:')) {
+          URL.revokeObjectURL(item.url);
+        }
+      });
+      currentDayTripCandidate.photoItems = [];
+    }
+  }
+
+  function updateDayTripSelectionCount() {
+    if (!dayTripSelectionCount || !currentDayTripCandidate) return;
+    const items = currentDayTripCandidate.photoItems || [];
+    const selectedCount = items.filter(it => it.selected).length;
+    dayTripSelectionCount.textContent = `${selectedCount} de ${items.length} fotos seleccionadas`;
+    if (btnDayTripConfirm) {
+      btnDayTripConfirm.disabled = (selectedCount === 0 && currentDayTripCandidate.routeFiles.length === 0);
+    }
+  }
+
+  async function processDayTripCandidateFiles(files, folderName = 'Carpeta del Día') {
+    if (!files || files.length === 0) return;
+    const fileList = Array.from(files);
+
+    const routeExtRegex = /\.(gpx|json|geojson|txt|kml|kmz)$/i;
+    const routeFiles = fileList.filter(f => routeExtRegex.test(f.name));
+    const photoFiles = fileList.filter(f => esArchivoImagen(f));
+
+    if (routeFiles.length === 0 && photoFiles.length === 0) {
+      alert('⚠️ No se detectaron archivos de rutas (.gpx, .json, .txt) ni fotos en esta carpeta.');
+      return;
+    }
+
+    if (photoFiles.length === 0 && routeFiles.length > 0) {
+      showProgress('CARGANDO RUTAS DEL DÍA', `${routeFiles.length} archivo(s)`, 20, 'Procesando telemetría...');
+      await handleFiles(routeFiles);
+      return;
+    }
+
+    showProgress('ANALIZANDO FOTOS DE LA JORNADA', `${photoFiles.length} foto(s)`, 25, 'Extrayendo miniaturas y GPS...', 'Preparando selector visual');
+
+    const photoItems = [];
+    for (let i = 0; i < photoFiles.length; i++) {
+      const f = photoFiles[i];
+      let url = '';
+      try {
+        url = URL.createObjectURL(f);
+      } catch (_) {
+        url = '';
+      }
+      let hasGps = false;
+      let dateStr = 'Sin fecha';
+
+      try {
+        const meta = await leerMetadatosFoto(f);
+        if (meta && meta.dateStr && meta.dateStr !== 'Fecha no disponible') {
+          dateStr = meta.dateStr;
+        } else if (f.lastModified) {
+          dateStr = new Date(f.lastModified).toLocaleDateString('es-AR', {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+          });
+        }
+        const gps = await leerGpsFoto(f);
+        hasGps = (gps !== null && gps.lat !== null && gps.lng !== null && !isNaN(gps.lat) && !isNaN(gps.lng));
+      } catch (err) {
+        console.warn('[DayTrip] Error leyendo metadatos de', f.name, err);
+      }
+
+      photoItems.push({
+        file: f,
+        url: url,
+        hasGps: hasGps,
+        dateStr: dateStr,
+        selected: true
+      });
+    }
+
+    hideProgress();
+
+    currentDayTripCandidate = {
+      folderName: folderName || 'Carpeta del Día',
+      routeFiles: routeFiles,
+      photoItems: photoItems
+    };
+
+    if (dayTripFolderName) dayTripFolderName.textContent = folderName || 'Jornada de Vacaciones';
+    if (dayTripRouteBadge) dayTripRouteBadge.textContent = `🗺️ ${routeFiles.length} ruta(s) detectada(s)`;
+    if (dayTripPhotosBadge) dayTripPhotosBadge.textContent = `📷 ${photoItems.length} foto(s) encontrada(s)`;
+
+    if (dayTripPhotosGrid) {
+      dayTripPhotosGrid.innerHTML = '';
+      if (photoItems.length === 0) {
+        if (dayTripEmptyMsg) dayTripEmptyMsg.classList.remove('hidden');
+      } else {
+        if (dayTripEmptyMsg) dayTripEmptyMsg.classList.add('hidden');
+        photoItems.forEach((item, idx) => {
+          const card = document.createElement('div');
+          card.className = `day-photo-card ${item.selected ? 'selected' : 'not-selected'}`;
+          card.dataset.photoIdx = idx;
+
+          card.innerHTML = `
+            <div class="day-photo-thumb-wrap">
+              <input type="checkbox" class="day-photo-checkbox" ${item.selected ? 'checked' : ''} />
+              <span class="day-photo-gps-badge ${item.hasGps ? 'has-gps' : 'no-gps'}" title="${item.hasGps ? 'Esta foto contiene coordenadas GPS directas' : 'Esta foto se posicionará en el mapa según la hora de la ruta'}">${item.hasGps ? '📍 GPS' : '⏱️ RUTA'}</span>
+              <img src="${item.url}" alt="${item.file.name}" class="day-photo-thumb" loading="lazy" />
+            </div>
+            <div class="day-photo-meta">
+              <span class="day-photo-title" title="${item.file.name}">${item.file.name}</span>
+              <span class="day-photo-time">${item.dateStr}</span>
+            </div>
+          `;
+
+          const cb = card.querySelector('.day-photo-checkbox');
+          const toggleCard = (checked) => {
+            item.selected = checked;
+            cb.checked = checked;
+            if (checked) {
+              card.classList.add('selected');
+              card.classList.remove('not-selected');
+            } else {
+              card.classList.remove('selected');
+              card.classList.add('not-selected');
+            }
+            updateDayTripSelectionCount();
+          };
+
+          cb.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleCard(cb.checked);
+          });
+
+          card.addEventListener('click', () => {
+            toggleCard(!item.selected);
+          });
+
+          dayTripPhotosGrid.appendChild(card);
+        });
+      }
+    }
+
+    updateDayTripSelectionCount();
+    if (dayTripModal) dayTripModal.classList.remove('hidden');
+  }
+
+  async function commitDayTripImport(loadAll = false) {
+    if (!currentDayTripCandidate) return;
+    const { routeFiles, photoItems, folderName } = currentDayTripCandidate;
+
+    const selectedPhotos = loadAll
+      ? photoItems.map(it => it.file)
+      : photoItems.filter(it => it.selected).map(it => it.file);
+
+    closeDayTripModal();
+
+    showProgress('INCORPORANDO JORNADA A LA BITÁCORA', `${routeFiles.length} rutas · ${selectedPhotos.length} fotos`, 20, 'Procesando ruta y ubicando fotografías en el mapa...', 'Integrando telemetría');
+
+    try {
+      if (routeFiles && routeFiles.length > 0) {
+        await handleFiles(routeFiles);
+      }
+
+      if (selectedPhotos && selectedPhotos.length > 0) {
+        const allRoutePoints = Array.from(nativeParser.pointsByRoute.values()).flat();
+        const photoGeoMap = nativeParser.getPhotoGeoMap ? nativeParser.getPhotoGeoMap() : null;
+        const result = await photoHandler.processPhotoFiles(selectedPhotos, allRoutePoints, photoGeoMap);
+        updatePhotosGallery(result.allPhotos);
+        statPhotosCount.textContent = result.allPhotos.length;
+      }
+
+      const focusBounds = L.latLngBounds([]);
+      const rBounds = nativeParser.getVisibleRoutesBounds();
+      if (rBounds && rBounds.isValid()) focusBounds.extend(rBounds);
+      const pBounds = typeof photoHandler.getPhotosBounds === 'function' ? photoHandler.getPhotosBounds() : null;
+      if (pBounds && pBounds.isValid()) focusBounds.extend(pBounds);
+      if (focusBounds.isValid()) {
+        mapInstance.fitBounds(focusBounds, { padding: [50, 50], maxZoom: 16 });
+      }
+
+      if (nativeParser.routes && nativeParser.routes.length > 0) {
+        setActiveSidebarTab('routes');
+      } else if (photoHandler.photos && photoHandler.photos.length > 0) {
+        setActiveSidebarTab('photos');
+      }
+
+      cursorCoords.textContent = `✅ Jornada cargada: ${routeFiles.length} ruta(s) y ${selectedPhotos.length} foto(s) de "${folderName}" incorporadas al mapa.`;
+      refreshSearchIndex();
+      await persistCurrentSession();
+      hideProgress(600);
+    } catch (err) {
+      hideProgress(0);
+      console.error('[BiTaVi] Error al incorporar jornada:', err);
+      alert(`Error al incorporar jornada: ${err.message}`);
+    }
+  }
+
+  async function openDayTripPicker() {
+    if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+      try {
+        const dirHandle = await window.showDirectoryPicker({
+          id: 'bitavi-day-trip-folder',
+          mode: 'read',
+          startIn: 'pictures'
+        });
+        const files = [];
+        async function readDir(handle, path = '') {
+          for await (const entry of handle.values()) {
+            if (entry.kind === 'file') {
+              const file = await entry.getFile();
+              files.push(file);
+            } else if (entry.kind === 'directory') {
+              await readDir(entry, `${path}${entry.name}/`);
+            }
+          }
+        }
+        await readDir(dirHandle);
+        await processDayTripCandidateFiles(files, dirHandle.name);
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.warn('[DayTrip] showDirectoryPicker fallback:', err);
+      }
+    }
+
+    if (dayTripFolderInput) {
+      dayTripFolderInput.click();
+    } else if (dayTripFilesInput) {
+      dayTripFilesInput.click();
+    }
+  }
+
+  if (btnImportDayTrip) {
+    btnImportDayTrip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDayTripPicker();
+    });
+  }
+  if (btnAddDayTrip) {
+    btnAddDayTrip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDayTripPicker();
+    });
+  }
+  if (dayTripFolderInput) {
+    dayTripFolderInput.addEventListener('change', async (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        const files = Array.from(e.target.files);
+        const folderName = files[0].webkitRelativePath
+          ? files[0].webkitRelativePath.split('/')[0]
+          : 'Carpeta del Día';
+        await processDayTripCandidateFiles(files, folderName);
+      }
+      e.target.value = '';
+    });
+  }
+  if (dayTripFilesInput) {
+    dayTripFilesInput.addEventListener('change', async (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        await processDayTripCandidateFiles(Array.from(e.target.files), 'Archivos Seleccionados');
+      }
+      e.target.value = '';
+    });
+  }
+  if (btnDaySelectAll) {
+    btnDaySelectAll.addEventListener('click', () => {
+      if (!currentDayTripCandidate || !currentDayTripCandidate.photoItems) return;
+      currentDayTripCandidate.photoItems.forEach(it => { it.selected = true; });
+      if (dayTripPhotosGrid) {
+        dayTripPhotosGrid.querySelectorAll('.day-photo-card').forEach(card => {
+          card.classList.add('selected');
+          card.classList.remove('not-selected');
+          const cb = card.querySelector('.day-photo-checkbox');
+          if (cb) cb.checked = true;
+        });
+      }
+      updateDayTripSelectionCount();
+    });
+  }
+  if (btnDayDeselectAll) {
+    btnDayDeselectAll.addEventListener('click', () => {
+      if (!currentDayTripCandidate || !currentDayTripCandidate.photoItems) return;
+      currentDayTripCandidate.photoItems.forEach(it => { it.selected = false; });
+      if (dayTripPhotosGrid) {
+        dayTripPhotosGrid.querySelectorAll('.day-photo-card').forEach(card => {
+          card.classList.remove('selected');
+          card.classList.add('not-selected');
+          const cb = card.querySelector('.day-photo-checkbox');
+          if (cb) cb.checked = false;
+        });
+      }
+      updateDayTripSelectionCount();
+    });
+  }
+  if (chkDayOnlyGps) {
+    chkDayOnlyGps.addEventListener('change', (e) => {
+      const onlyGps = e.target.checked;
+      if (!currentDayTripCandidate || !currentDayTripCandidate.photoItems) return;
+      currentDayTripCandidate.photoItems.forEach((it, idx) => {
+        it.selected = onlyGps ? it.hasGps : true;
+        const card = dayTripPhotosGrid.querySelector(`.day-photo-card[data-photo-idx="${idx}"]`);
+        if (card) {
+          const cb = card.querySelector('.day-photo-checkbox');
+          if (cb) cb.checked = it.selected;
+          if (it.selected) {
+            card.classList.add('selected');
+            card.classList.remove('not-selected');
+          } else {
+            card.classList.remove('selected');
+            card.classList.add('not-selected');
+          }
+        }
+      });
+      updateDayTripSelectionCount();
+    });
+  }
+  if (dayTripClose) dayTripClose.addEventListener('click', closeDayTripModal);
+  if (dayTripBackdrop) dayTripBackdrop.addEventListener('click', closeDayTripModal);
+  if (btnDayTripCancel) btnDayTripCancel.addEventListener('click', closeDayTripModal);
+  if (btnDayTripLoadAll) btnDayTripLoadAll.addEventListener('click', () => commitDayTripImport(true));
+  if (btnDayTripConfirm) btnDayTripConfirm.addEventListener('click', () => commitDayTripImport(false));
+
   dropzone.addEventListener('click', () => {
     fileInput.click();
   });
@@ -3136,6 +3488,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Menú Archivo
+  bindMenuAction('menu-action-import-day', () => {
+    openDayTripPicker();
+  });
   bindMenuAction('menu-action-load-zip', () => {
     setActiveSidebarTab('load');
     fileInput.click();
