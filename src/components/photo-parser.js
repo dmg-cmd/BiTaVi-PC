@@ -24,6 +24,7 @@ export class PhotoHandler {
         let camera = 'Desconocida';
         let hasGps = false;
         let ts = null;
+        let geotagSource = null;
 
         // 1. Intentar extraer coordenadas GPS directas de los metadatos EXIF
         try {
@@ -33,9 +34,50 @@ export class PhotoHandler {
             lat = gps.latitude;
             lng = gps.longitude;
             hasGps = true;
+            geotagSource = 'exif';
           }
         } catch (e) {
           // EXIF GPS ausente o no legible
+        }
+
+        // 1b. Fallback EXIF directo en caso de que exifr.gps no haya encontrado el bloque TIFF directo
+        if (!hasGps) {
+          try {
+            const rawExif = await exifr.parse(file, {
+              tiff: true,
+              xmp: true,
+              ifd0: true,
+              gps: true
+            });
+            if (rawExif) {
+              if (typeof rawExif.latitude === 'number' && !isNaN(rawExif.latitude) &&
+                  typeof rawExif.longitude === 'number' && !isNaN(rawExif.longitude)) {
+                lat = rawExif.latitude;
+                lng = rawExif.longitude;
+                hasGps = true;
+                geotagSource = 'exif';
+              } else if (rawExif.GPSLatitude && rawExif.GPSLongitude) {
+                let dmsLat = Array.isArray(rawExif.GPSLatitude)
+                  ? rawExif.GPSLatitude[0] + (rawExif.GPSLatitude[1] || 0) / 60 + (rawExif.GPSLatitude[2] || 0) / 3600
+                  : parseFloat(rawExif.GPSLatitude);
+                let dmsLng = Array.isArray(rawExif.GPSLongitude)
+                  ? rawExif.GPSLongitude[0] + (rawExif.GPSLongitude[1] || 0) / 60 + (rawExif.GPSLongitude[2] || 0) / 3600
+                  : parseFloat(rawExif.GPSLongitude);
+
+                if (rawExif.GPSLatitudeRef === 'S') dmsLat = -Math.abs(dmsLat);
+                if (rawExif.GPSLongitudeRef === 'W') dmsLng = -Math.abs(dmsLng);
+
+                if (!isNaN(dmsLat) && !isNaN(dmsLng) && dmsLat >= -90 && dmsLat <= 90 && dmsLng >= -180 && dmsLng <= 180) {
+                  lat = dmsLat;
+                  lng = dmsLng;
+                  hasGps = true;
+                  geotagSource = 'exif';
+                }
+              }
+            }
+          } catch (e) {
+            // EXIF fallback no legible
+          }
         }
 
         // Metadatos EXIF complementarios (cámara, altitud, fecha de captura)
@@ -67,11 +109,13 @@ export class PhotoHandler {
         //    Las paradas/favoritos en favoritos.txt guardan la foto asociada y sus coordenadas.
         if (!hasGps && photoGeoMap) {
           const cleanName = file.name.split('/').pop().toLowerCase().trim();
-          const geo = photoGeoMap.get(cleanName);
+          const withoutExt = cleanName.replace(/\.[^/.]+$/, '');
+          const geo = photoGeoMap.get(cleanName) || photoGeoMap.get(withoutExt);
           if (geo && typeof geo.lat === 'number' && !isNaN(geo.lat) && typeof geo.lng === 'number' && !isNaN(geo.lng)) {
             lat = geo.lat;
             lng = geo.lng;
             hasGps = true;
+            geotagSource = 'favoritos';
           }
         }
 
@@ -106,6 +150,7 @@ export class PhotoHandler {
               lng = closestPoint.lng;
               alt = closestPoint.ele ? Math.round(closestPoint.ele) : null;
               hasGps = true;
+              geotagSource = 'timestamp';
             }
           }
         }
@@ -119,6 +164,7 @@ export class PhotoHandler {
           url: objectUrl,
           blob: file,
           hasGps,
+          geotagSource,
           lat,
           lng,
           alt,
@@ -267,6 +313,7 @@ export class PhotoHandler {
     photo.lat = lat;
     photo.lng = lng;
     photo.hasGps = true;
+    photo.geotagSource = 'manual';
 
     const marker = this.photoMarkers.get(photoId);
     if (marker) {
@@ -277,6 +324,79 @@ export class PhotoHandler {
 
     if (this.onPhotoGeotag) this.onPhotoGeotag(photo);
     return photo;
+  }
+
+  /**
+   * Reintenta geolocalizar fotos cargadas que aún no tengan coordenadas,
+   * aprovechando nuevas rutas o el mapa de favoritos/paradas.
+   * @param {Array<object>} routePoints
+   * @param {Map} photoGeoMap
+   * @returns {number} cantidad de fotos recién geolocalizadas
+   */
+  retryGeotagging(routePoints = [], photoGeoMap = null) {
+    let newlyGeotagged = 0;
+
+    for (const photo of this.photos) {
+      if (photo.hasGps && photo.lat !== null && photo.lng !== null && !isNaN(photo.lat) && !isNaN(photo.lng)) {
+        continue;
+      }
+
+      let lat = null;
+      let lng = null;
+      let alt = null;
+      let source = null;
+
+      // 1. Geolocalización por favoritos / paradas de BiTaVi o JSON
+      if (photoGeoMap) {
+        const cleanName = photo.name.split('/').pop().toLowerCase().trim();
+        const withoutExt = cleanName.replace(/\.[^/.]+$/, '');
+        const geo = photoGeoMap.get(cleanName) || photoGeoMap.get(withoutExt);
+        if (geo && typeof geo.lat === 'number' && !isNaN(geo.lat) && typeof geo.lng === 'number' && !isNaN(geo.lng)) {
+          lat = geo.lat;
+          lng = geo.lng;
+          source = 'favoritos';
+        }
+      }
+
+      // 2. Geotagging por timestamp del nombre de archivo contra las coordenadas de la ruta
+      if (lat === null && routePoints && routePoints.length > 0) {
+        const tsMatch = photo.name.match(/(\d{13})/);
+        if (tsMatch) {
+          const fileTimestamp = parseInt(tsMatch[1], 10);
+          let closestPoint = null;
+          let minDiff = Infinity;
+
+          for (const pt of routePoints) {
+            if (pt.timestamp && pt.timestamp > 0) {
+              const diff = Math.abs(pt.timestamp - fileTimestamp);
+              if (diff < minDiff) {
+                minDiff = diff;
+                closestPoint = pt;
+              }
+            }
+          }
+
+          if (closestPoint && minDiff < 3600000) { // dentro de 1 hora
+            lat = closestPoint.lat;
+            lng = closestPoint.lng;
+            alt = closestPoint.ele ? Math.round(closestPoint.ele) : null;
+            source = 'timestamp';
+          }
+        }
+      }
+
+      if (lat !== null && lng !== null) {
+        photo.lat = lat;
+        photo.lng = lng;
+        photo.alt = alt;
+        photo.hasGps = true;
+        photo.geotagSource = source;
+        this.createPhotoMarker(photo);
+        newlyGeotagged++;
+      }
+    }
+
+    return newlyGeotagged;
   }
 
   /**

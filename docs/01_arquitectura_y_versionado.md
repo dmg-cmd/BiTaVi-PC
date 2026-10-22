@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.4-alpha`
+- **Versión Actual**: `v1.1.5-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,19 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.5-alpha` (2026-10-22)
+- **Motor Universal de Rutas JSON Resiliente a Fallos, Diagnóstico Táctico y Re-Geolocalización Reactiva de Fotos**:
+  - **Auto-Descubrimiento Universal de Rutas en JSON (`src/components/bitavi-native-parser.js`)**:
+    - **Soporte de Arrays de Rutas en la Raíz**: Se corrigió el problema donde un archivo JSON con formato `[ { name, points: [...] }, ... ]` o `[ { id_ruta: 57, ... } ]` fallaba silenciosamente; ahora identifica si los elementos son rutas independientes o puntos con ID y los traza en el mapa.
+    - **Soporte de Tablas Relacionales y Formatos Android / Google Takeout**: Interpreta `id_ruta`, `route_id`, `puntos`, `coordenadas`, `locations` con `latitudeE7` y `longitudeE7`, y claves en español o inglés con o sin mayúsculas.
+    - **Escáner Heurístico Recursivo ("Deep Coordinate Scanner")**: Si la estructura no coincide con esquemas predefinidos, explora en profundidad el árbol JSON buscando cualquier colección de tuplas u objetos con coordenadas GPS válidas y las reconstruye automáticamente como tracks de expedición.
+  - **Diagnóstico y Alertas en Pantalla (`src/main.js`)**:
+    - Si se carga un archivo JSON que no contiene coordenadas válidas, la aplicación no falla en silencio; despliega un diálogo emergente con las claves de primer nivel encontradas para orientar al usuario.
+  - **Re-Geolocalización Reactiva de Fotos (`src/components/photo-parser.js`)**:
+    - Implementación de `retryGeotagging(routePoints, photoGeoMap)`: Si el usuario carga primero las fotografías y posteriormente las rutas (o viceversa), las fotos pendientes se vinculan automáticamente a las paradas y marcas de tiempo de las rutas sin necesidad de recargar la página.
+    - Indicador de origen de coordenadas en las tarjetas de la galería (`EXIF GPS`, `Parada BiTaVi`, `Ruta` o `Fijado Manual`), eliminando la ambigüedad del estado de cada fotografía.
+  - **Pruebas Automatizadas**: 7 pruebas unitarias completas en `tests/json-parser.test.js` (44/44 tests aprobados en total).
 
 ### `v1.1.4-alpha` (2026-10-22)
 - **Barra de Menús Superior Táctica y Pestañas de Navegación Compacta en el Panel**:

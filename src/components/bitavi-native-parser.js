@@ -272,7 +272,9 @@ export class BiTaViNativeParser {
    * Útil para posicionar fotos que no tienen EXIF GPS pero sí un favorito/parada asociado.
    */
   /**
-   * Interpreta datos en formato JSON / GeoJSON de forma universal y robusta
+   * Interpreta datos en formato JSON / GeoJSON de forma universal y robusta.
+   * Soporta GeoJSON estándar, arrays de rutas, tablas de puntos, Google Timeline / Takeout,
+   * objetos anidados y auto-descubrimiento heurístico recursivo de coordenadas.
    * @param {string|object} jsonContent
    * @param {string} fallbackName
    * @returns {boolean} true si se encontraron rutas, waypoints o puntos
@@ -281,7 +283,9 @@ export class BiTaViNativeParser {
     let data;
     if (typeof jsonContent === 'string') {
       try {
-        data = JSON.parse(jsonContent);
+        // Remover posibles marcas de orden de bytes (BOM UTF-8) y espacios
+        const cleanStr = jsonContent.trim().replace(/^\uFEFF/, '');
+        data = JSON.parse(cleanStr);
       } catch (e) {
         console.warn('[BiTaVi] JSON no válido:', e);
         return false;
@@ -292,24 +296,145 @@ export class BiTaViNativeParser {
 
     if (!data) return false;
     let added = false;
+    this.lastJsonInspection = { keys: Object.keys(data || {}), routesFound: 0, pointsFound: 0 };
 
-    // Caso A: GeoJSON estándar (FeatureCollection, Feature o Geometry con coordinates)
-    if (data.type === 'FeatureCollection' || data.type === 'Feature' || data.coordinates) {
-      return this.parseGeoJson(data, fallbackName);
+    // Helper para buscar propiedad tolerante a mayúsculas/minúsculas y subcontenedores comunes
+    const findContainer = (obj, candidateKeys) => {
+      if (!obj || typeof obj !== 'object') return null;
+      // 1. Búsqueda directa
+      for (const key of candidateKeys) {
+        if (obj[key] !== undefined) return obj[key];
+        const lowerKey = key.toLowerCase();
+        for (const k of Object.keys(obj)) {
+          if (k.toLowerCase() === lowerKey && obj[k] !== undefined) return obj[k];
+        }
+      }
+      // 2. Búsqueda en contenedores secundarios comunes (data, payload, response, result, export, backup, trip, viaje)
+      const subContainers = ['data', 'payload', 'response', 'result', 'export', 'backup', 'trip', 'viaje', 'expedicion'];
+      for (const sub of subContainers) {
+        if (obj[sub] && typeof obj[sub] === 'object') {
+          for (const key of candidateKeys) {
+            if (obj[sub][key] !== undefined) return obj[sub][key];
+            const lowerKey = key.toLowerCase();
+            for (const k of Object.keys(obj[sub])) {
+              if (k.toLowerCase() === lowerKey && obj[sub][k] !== undefined) return obj[sub][k];
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    // Caso A: GeoJSON estándar (FeatureCollection, Feature, GeometryCollection o geometry directo)
+    if (data.type === 'FeatureCollection' || data.type === 'Feature' || data.type === 'GeometryCollection' || data.coordinates || Array.isArray(data.features)) {
+      const geoResult = this.parseGeoJson(data, fallbackName);
+      if (geoResult) return true;
     }
 
-    // Caso B: Objeto de backup unificado con rutas y puntos
-    const routesList = data.routes || data.rutas || data.tracks || data.recorridos;
-    const pointsList = data.points || data.puntos || data.coordenadas;
-    const markersList = data.markers || data.marcadores || data.waypoints;
-    const favoritesList = data.favorites || data.favoritos || data.paradas;
+    // Caso B: Array en la raíz
+    if (Array.isArray(data) && data.length > 0) {
+      const firstItem = data[0];
 
-    // B1: Rutas con puntos embebidos adentro de cada objeto ruta
+      // B1: Array de Rutas (cada elemento es un objeto que contiene una colección de puntos)
+      const hasRoutePointsProp = firstItem && typeof firstItem === 'object' && (
+        firstItem.points || firstItem.puntos || firstItem.coordinates || firstItem.coordenadas ||
+        firstItem.latLngs || firstItem.locations || firstItem.path || firstItem.track || firstItem.trazado || firstItem.nodes
+      );
+
+      if (hasRoutePointsProp) {
+        data.forEach((r, idx) => {
+          if (!r || typeof r !== 'object') return;
+          const routeId = String(r.id || r.id_ruta || r.routeId || idx + 1);
+          const name = r.name || r.nombre || r.title || r.titulo || `${fallbackName} ${idx + 1}`;
+          const pts = r.points || r.puntos || r.coordinates || r.coordenadas || r.latLngs || r.locations || r.path || r.track || r.trazado || r.nodes || [];
+          const parsedPoints = this._normalizePointsArray(pts);
+
+          if (parsedPoints.length > 0) {
+            this.addRoute({
+              id: routeId,
+              name,
+              startTime: r.startTime || r.time || parseFlexibleTimestamp(r.startDate || name) || null,
+              startDate: r.startDate || r.fecha || extractDateFromName(name) || null
+            }, parsedPoints, false);
+            added = true;
+            this.lastJsonInspection.routesFound++;
+            this.lastJsonInspection.pointsFound += parsedPoints.length;
+          }
+        });
+        if (added) {
+          this.renderMarkersAndFavorites();
+          return true;
+        }
+      }
+
+      // B2: Array de Puntos individuales con ID de ruta (ej. tabla relacional puntos.txt volcada a JSON)
+      const hasRouteIdProp = firstItem && typeof firstItem === 'object' && (
+        firstItem.id_ruta !== undefined || firstItem.routeId !== undefined || firstItem.route_id !== undefined ||
+        firstItem.ruta !== undefined || firstItem.id_recorrido !== undefined || firstItem.track_id !== undefined
+      );
+
+      if (hasRouteIdProp) {
+        const ptsByRoute = new Map();
+        data.forEach(pt => {
+          if (!pt) return;
+          const rId = String(pt.id_ruta ?? pt.routeId ?? pt.route_id ?? pt.ruta ?? pt.id_recorrido ?? pt.track_id ?? '1');
+          if (!ptsByRoute.has(rId)) ptsByRoute.set(rId, []);
+          ptsByRoute.get(rId).push(pt);
+        });
+
+        ptsByRoute.forEach((pts, rId) => {
+          const parsedPoints = this._normalizePointsArray(pts);
+          if (parsedPoints.length > 0) {
+            const rName = `${fallbackName}${ptsByRoute.size > 1 ? ` (Ruta ${rId})` : ''}`;
+            this.addRoute({
+              id: rId,
+              name: rName,
+              startDate: extractDateFromName(rName) || null
+            }, parsedPoints, false);
+            added = true;
+            this.lastJsonInspection.routesFound++;
+            this.lastJsonInspection.pointsFound += parsedPoints.length;
+          }
+        });
+        if (added) {
+          this.renderMarkersAndFavorites();
+          return true;
+        }
+      }
+
+      // B3: Array directo de coordenadas o puntos planos [ [lat, lng], ... ] o [ {lat, lng}, ... ]
+      const parsedPoints = this._normalizePointsArray(data);
+      if (parsedPoints.length > 0) {
+        this.addRoute({
+          name: fallbackName,
+          startDate: extractDateFromName(fallbackName) || null
+        }, parsedPoints, false);
+        added = true;
+        this.lastJsonInspection.routesFound++;
+        this.lastJsonInspection.pointsFound += parsedPoints.length;
+        this.renderMarkersAndFavorites();
+        return true;
+      }
+    }
+
+    // Caso C: Objeto contenedor con listas de rutas, puntos, marcadores y favoritos
+    const routeKeys = ['routes', 'rutas', 'tracks', 'recorridos', 'trips', 'viajes', 'segments', 'legs', 'paths', 'activities', 'history', 't_rutas', 'tbl_rutas', 'tours'];
+    const pointKeys = ['points', 'puntos', 'coordinates', 'coordenadas', 'locations', 'positions', 'trackpoints', 'nodes', 't_puntos'];
+    const markerKeys = ['markers', 'marcadores', 'waypoints', 'pois', 'puntos_interes', 't_marcadores'];
+    const favoriteKeys = ['favorites', 'favoritos', 'paradas', 'stops', 'photos', 'fotos', 'imagenes', 't_favoritos'];
+
+    const routesList = findContainer(data, routeKeys);
+    const pointsList = findContainer(data, pointKeys);
+    const markersList = findContainer(data, markerKeys);
+    const favoritesList = findContainer(data, favoriteKeys);
+
+    // C1: Rutas con puntos embebidos adentro de cada objeto ruta
     if (Array.isArray(routesList)) {
       routesList.forEach((r, idx) => {
-        const routeId = String(r.id || idx + 1);
-        const name = r.name || r.nombre || `${fallbackName} ${idx + 1}`;
-        const pts = r.points || r.puntos || r.coordinates || r.coordenadas || r.latLngs || [];
+        if (!r || typeof r !== 'object') return;
+        const routeId = String(r.id || r.id_ruta || idx + 1);
+        const name = r.name || r.nombre || r.title || `${fallbackName} ${idx + 1}`;
+        const pts = r.points || r.puntos || r.coordinates || r.coordenadas || r.latLngs || r.locations || r.path || r.track || [];
         const parsedPoints = this._normalizePointsArray(pts);
 
         if (parsedPoints.length > 0) {
@@ -320,15 +445,19 @@ export class BiTaViNativeParser {
             startDate: r.startDate || r.fecha || extractDateFromName(name) || null
           }, parsedPoints, false);
           added = true;
+          this.lastJsonInspection.routesFound++;
+          this.lastJsonInspection.pointsFound += parsedPoints.length;
         }
       });
     }
 
-    // B2: Puntos en lista plana que tienen routeId o son una sola traza
+    // C2: Puntos en lista plana que tienen routeId o son una sola traza
     if (Array.isArray(pointsList) && (!routesList || routesList.length === 0)) {
+      const containerName = data.name || data.nombre || data.title || fallbackName;
       const ptsByRoute = new Map();
       pointsList.forEach(pt => {
-        const rId = String(pt.routeId || pt.route_id || pt.id_ruta || pt.route || '1');
+        if (!pt) return;
+        const rId = String(pt.routeId ?? pt.route_id ?? pt.id_ruta ?? pt.ruta ?? '1');
         if (!ptsByRoute.has(rId)) ptsByRoute.set(rId, []);
         ptsByRoute.get(rId).push(pt);
       });
@@ -336,26 +465,29 @@ export class BiTaViNativeParser {
       ptsByRoute.forEach((pts, rId) => {
         const parsedPoints = this._normalizePointsArray(pts);
         if (parsedPoints.length > 0) {
-          const rName = `${fallbackName}${ptsByRoute.size > 1 ? ` (Tramo ${rId})` : ''}`;
+          const rName = `${containerName}${ptsByRoute.size > 1 ? ` (Tramo ${rId})` : ''}`;
           this.addRoute({
             id: rId,
             name: rName,
             startDate: extractDateFromName(rName) || null
           }, parsedPoints, false);
           added = true;
+          this.lastJsonInspection.routesFound++;
+          this.lastJsonInspection.pointsFound += parsedPoints.length;
         }
       });
     }
 
-    // B3: Marcadores y Favoritos en JSON
+    // C3: Marcadores y Waypoints en JSON
     if (Array.isArray(markersList)) {
       markersList.forEach((m, idx) => {
-        const lat = parseFloat(m.lat || m.latitude || m.latitud);
-        const lng = parseFloat(m.lng || m.lon || m.longitude || m.longitud);
+        if (!m) return;
+        const lat = parseFloat(m.lat ?? m.latitude ?? m.latitud ?? m.Lat ?? m.y);
+        const lng = parseFloat(m.lng ?? m.lon ?? m.longitude ?? m.longitud ?? m.Lng ?? m.x);
         if (!isNaN(lat) && !isNaN(lng)) {
           this.markers.push({
             id: String(m.id || `marker-${Date.now()}-${idx}`),
-            name: m.name || m.nombre || 'Marcador',
+            name: m.name || m.nombre || m.title || 'Marcador',
             desc: m.desc || m.descripcion || '',
             lat,
             lng,
@@ -366,36 +498,81 @@ export class BiTaViNativeParser {
       });
     }
 
+    // C4: Favoritos, Paradas y Fotos en JSON
     if (Array.isArray(favoritesList)) {
       favoritesList.forEach(f => {
-        const lat = parseFloat(f.lat || f.latitude || f.latitud);
-        const lng = parseFloat(f.lng || f.lon || f.longitude || f.longitud);
+        if (!f) return;
+        const lat = parseFloat(f.lat ?? f.latitude ?? f.latitud ?? f.Lat ?? f.y);
+        const lng = parseFloat(f.lng ?? f.lon ?? f.longitude ?? f.longitud ?? f.Lng ?? f.x);
         if (!isNaN(lat) && !isNaN(lng)) {
+          const photoUrl = f.photoUrl || f.photo || f.foto || f.image || f.file || '';
+          const photoFile = f.photoFile || (photoUrl ? photoUrl.split('/').pop().replace(/^.*[\\/]/, '') : null);
           this.favorites.push({
-            name: f.name || f.nombre || 'Favorito',
+            name: f.name || f.nombre || f.title || 'Favorito',
             address: f.address || f.direccion || '',
             lat,
             lng,
-            desc: f.desc || '',
-            type: f.type || 'Punto',
+            desc: f.desc || f.descripcion || '',
+            type: f.type || f.tipo || 'Punto',
             color: f.color || '#FFD700',
-            photoUrl: f.photoUrl || f.photo || f.foto || '',
-            photoFile: f.photoFile || null
+            photoUrl,
+            photoFile
           });
           added = true;
         }
       });
     }
 
-    // Caso C: Array plano de coordenadas directas [ [lat, lng], ... ] o [ {lat, lng}, ... ]
-    if (!added && Array.isArray(data)) {
-      const parsedPoints = this._normalizePointsArray(data);
-      if (parsedPoints.length > 0) {
-        this.addRoute({
-          name: fallbackName,
-          startDate: extractDateFromName(fallbackName) || null
-        }, parsedPoints, false);
-        added = true;
+    // Caso D: Objeto único que representa directamente una sola ruta
+    if (!added && typeof data === 'object') {
+      const singlePts = data.points || data.puntos || data.coordinates || data.coordenadas || data.locations || data.latLngs || data.path || data.track;
+      if (Array.isArray(singlePts)) {
+        const parsedPoints = this._normalizePointsArray(singlePts);
+        if (parsedPoints.length > 0) {
+          const rName = data.name || data.nombre || data.title || fallbackName;
+          this.addRoute({
+            name: rName,
+            startDate: data.startDate || data.fecha || extractDateFromName(rName) || null
+          }, parsedPoints, false);
+          added = true;
+          this.lastJsonInspection.routesFound++;
+          this.lastJsonInspection.pointsFound += parsedPoints.length;
+        }
+      }
+    }
+
+    // Caso E: Google Timeline / Takeout (locations array o semanticSegments)
+    if (!added && data.timelineObjects && Array.isArray(data.timelineObjects)) {
+      data.timelineObjects.forEach((item, idx) => {
+        const act = item.activitySegment;
+        if (act && act.waypointPath && Array.isArray(act.waypointPath.points)) {
+          const parsedPoints = this._normalizePointsArray(act.waypointPath.points);
+          if (parsedPoints.length > 0) {
+            this.addRoute({
+              name: `Timeline Actividad ${idx + 1} (${act.activityType || 'Desplazamiento'})`,
+              startDate: act.duration?.startTimestamp ? act.duration.startTimestamp.split('T')[0] : null
+            }, parsedPoints, false);
+            added = true;
+          }
+        }
+      });
+    }
+
+    // Caso F: Auto-descubrimiento heurístico recursivo ("Deep Coordinate Scanner")
+    // Explora árboles JSON heterogéneos buscando arrays con 2 o más coordenadas válidas
+    if (!added && typeof data === 'object') {
+      const discoveredTracks = this._deepScanForCoordinates(data);
+      if (discoveredTracks.length > 0) {
+        discoveredTracks.forEach((trackPts, tIdx) => {
+          const rName = `${fallbackName}${discoveredTracks.length > 1 ? ` (Tramo ${tIdx + 1})` : ''}`;
+          this.addRoute({
+            name: rName,
+            startDate: extractDateFromName(rName) || null
+          }, trackPts, false);
+          added = true;
+          this.lastJsonInspection.routesFound++;
+          this.lastJsonInspection.pointsFound += trackPts.length;
+        });
       }
     }
 
@@ -407,13 +584,48 @@ export class BiTaViNativeParser {
   }
 
   /**
+   * Escanea recursivamente un objeto o árbol JSON buscando secuencias de coordenadas GPS válidas
+   * @param {object|Array} rootObj
+   * @param {number} maxDepth
+   * @returns {Array<Array<object>>} lista de tramos de puntos descubiertos
+   */
+  _deepScanForCoordinates(rootObj, maxDepth = 5) {
+    const discovered = [];
+
+    const traverse = (node, depth) => {
+      if (!node || depth > maxDepth) return;
+
+      if (Array.isArray(node)) {
+        if (node.length >= 2) {
+          const normalized = this._normalizePointsArray(node);
+          // Si al menos el 70% de los elementos se normalizaron a puntos válidos y hay al menos 2
+          if (normalized.length >= 2 && normalized.length >= Math.floor(node.length * 0.7)) {
+            discovered.push(normalized);
+            return; // Ya procesamos este array como un track, no descender más en él
+          }
+        }
+        for (const item of node) {
+          if (typeof item === 'object') traverse(item, depth + 1);
+        }
+      } else if (typeof node === 'object') {
+        for (const key of Object.keys(node)) {
+          traverse(node[key], depth + 1);
+        }
+      }
+    };
+
+    traverse(rootObj, 0);
+    return discovered;
+  }
+
+  /**
    * Interpreta objetos GeoJSON (FeatureCollection, Feature, LineString, MultiLineString, Point)
    */
   parseGeoJson(geoJson, fallbackName = 'GeoJSON') {
     let added = false;
     const features = geoJson.type === 'FeatureCollection'
       ? geoJson.features
-      : (geoJson.type === 'Feature' ? [geoJson] : [{ geometry: geoJson, properties: {} }]);
+      : (geoJson.type === 'Feature' ? [geoJson] : (Array.isArray(geoJson.features) ? geoJson.features : [{ geometry: geoJson, properties: {} }]));
 
     if (!features || !Array.isArray(features)) return false;
 
@@ -503,17 +715,31 @@ export class BiTaViNativeParser {
         }
         if (p.length > 2) ele = parseFloat(p[2]) || null;
       } else if (typeof p === 'object') {
-        const rawLat = p.lat !== undefined ? p.lat : (p.latitude !== undefined ? p.latitude : (p.latitud !== undefined ? p.latitud : p.y));
-        const rawLng = p.lng !== undefined ? p.lng : (p.lon !== undefined ? p.lon : (p.longitude !== undefined ? p.longitude : (p.longitud !== undefined ? p.longitud : p.x)));
-        lat = parseFloat(rawLat);
-        lng = parseFloat(rawLng);
-        ele = p.ele !== undefined ? parseFloat(p.ele) : (p.alt !== undefined ? parseFloat(p.alt) : (p.altitude !== undefined ? parseFloat(p.altitude) : (p.elevacion !== undefined ? parseFloat(p.elevacion) : null)));
-        speed = p.speed !== undefined ? parseFloat(p.speed) : (p.velocidad !== undefined ? parseFloat(p.velocidad) : null);
-        timestamp = p.timestamp || p.time || p.fecha || null;
+        // Soporte Google Timeline / Takeout con latitudeE7 y longitudeE7
+        if (p.latitudeE7 !== undefined && p.longitudeE7 !== undefined) {
+          lat = parseFloat(p.latitudeE7) / 1e7;
+          lng = parseFloat(p.longitudeE7) / 1e7;
+        } else {
+          const rawLat = p.lat ?? p.latitude ?? p.latitud ?? p.Lat ?? p.Latitude ?? p.Latitud ?? p.y ?? p.Y;
+          const rawLng = p.lng ?? p.lon ?? p.longitude ?? p.longitud ?? p.Lng ?? p.Lon ?? p.Longitude ?? p.Longitud ?? p.x ?? p.X;
+          lat = parseFloat(rawLat);
+          lng = parseFloat(rawLng);
+        }
+
+        const rawEle = p.ele ?? p.alt ?? p.altitude ?? p.elevacion ?? p.Alt ?? p.Altitude ?? p.z ?? p.Z;
+        ele = rawEle !== undefined ? parseFloat(rawEle) : null;
+
+        const rawSpeed = p.speed ?? p.velocidad ?? p.Speed;
+        speed = rawSpeed !== undefined ? parseFloat(rawSpeed) : null;
+
+        timestamp = p.timestamp ?? p.time ?? p.timestampMs ?? p.fecha ?? p.Fecha ?? p.date ?? null;
       }
 
       if (typeof lat === 'number' && !isNaN(lat) && typeof lng === 'number' && !isNaN(lng)) {
-        return { lat, lng, ele, speed, timestamp: parseFlexibleTimestamp(timestamp) };
+        // Validar que las coordenadas estén dentro del rango geográfico válido de la Tierra
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          return { lat, lng, ele, speed, timestamp: parseFlexibleTimestamp(timestamp) };
+        }
       }
       return null;
     }).filter(Boolean);
@@ -523,7 +749,13 @@ export class BiTaViNativeParser {
     const map = new Map();
     this.favorites.forEach(f => {
       if (f.photoFile && !isNaN(f.lat) && !isNaN(f.lng)) {
-        map.set(f.photoFile.toLowerCase(), { lat: f.lat, lng: f.lng });
+        const cleanName = f.photoFile.toLowerCase().trim();
+        map.set(cleanName, { lat: f.lat, lng: f.lng });
+        // Registrar también sin extensión para tolerancia
+        const withoutExt = cleanName.replace(/\.[^/.]+$/, '');
+        if (withoutExt && withoutExt !== cleanName) {
+          map.set(withoutExt, { lat: f.lat, lng: f.lng });
+        }
       }
     });
     return map;

@@ -2237,6 +2237,14 @@ document.addEventListener('DOMContentLoaded', () => {
           const result = await photoHandler.processPhotoFiles(imageFiles, allRoutePoints, photoGeoMap);
           updatePhotosGallery(result.allPhotos);
           statPhotosCount.textContent = result.allPhotos.length;
+        } else if (photoHandler.photos.length > 0) {
+          const allRoutePoints = Array.from(nativeParser.pointsByRoute.values()).flat();
+          const photoGeoMap = nativeParser.getPhotoGeoMap ? nativeParser.getPhotoGeoMap() : null;
+          const newlyGeo = photoHandler.retryGeotagging(allRoutePoints, photoGeoMap);
+          if (newlyGeo > 0) {
+            updatePhotosGallery(photoHandler.photos);
+            statPhotosCount.textContent = photoHandler.photos.length;
+          }
         }
 
         updateProgress(100, '✅ ¡Carga completada con éxito!', `${textFiles.length} archivo(s) procesados`);
@@ -2252,16 +2260,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (jsonFiles.length > 0) {
       showProgress('PROCESANDO GEODATOS JSON', `${jsonFiles.length} archivo(s)`, 20, 'Leyendo rutas y coordenadas JSON...', 'Interpretando estructura...');
       let jsonAddedCount = 0;
+      let lastFileInspection = null;
+
       for (const jf of jsonFiles) {
         try {
           const jsonText = await jf.text();
           const fallbackName = jf.name.replace(/\.[^/.]+$/, '');
           const success = nativeParser.parseJsonData(jsonText, fallbackName);
-          if (success) jsonAddedCount++;
+          if (success) {
+            jsonAddedCount++;
+          } else {
+            lastFileInspection = {
+              name: jf.name,
+              inspection: nativeParser.lastJsonInspection
+            };
+          }
         } catch (jErr) {
           console.warn('[BiTaVi] Error al procesar JSON:', jf.name, jErr);
         }
       }
+
       if (jsonAddedCount > 0) {
         currentRouteBounds = nativeParser.renderRoute('all');
         populateRouteSelector(nativeParser.routes);
@@ -2269,6 +2287,22 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAllRouteStats();
         routeActions.classList.remove('hidden');
         cursorCoords.textContent = `✅ Se cargaron rutas desde ${jsonAddedCount} archivo(s) JSON / GeoJSON.`;
+
+        // Reintentar geolocalizar fotos pendientes con las rutas recién descubiertas
+        if (photoHandler.photos.length > 0) {
+          const allRoutePoints = Array.from(nativeParser.pointsByRoute.values()).flat();
+          const photoGeoMap = nativeParser.getPhotoGeoMap ? nativeParser.getPhotoGeoMap() : null;
+          const newlyGeo = photoHandler.retryGeotagging(allRoutePoints, photoGeoMap);
+          if (newlyGeo > 0) {
+            updatePhotosGallery(photoHandler.photos);
+            statPhotosCount.textContent = photoHandler.photos.length;
+          }
+        }
+      } else if (lastFileInspection) {
+        const keysText = (lastFileInspection.inspection?.keys && lastFileInspection.inspection.keys.length > 0)
+          ? lastFileInspection.inspection.keys.slice(0, 10).join(', ')
+          : 'sin claves reconocibles';
+        alert(`ℹ️ Se leyó el archivo "${lastFileInspection.name}", pero no se encontraron coordenadas o trazas GPS.\n\nEstructura detectada (claves):\n[ ${keysText} ]\n\nSi crees que este archivo contiene rutas, copia un fragmento del archivo o comparte su formato para asistirte.`);
       }
       hideProgress();
     }
@@ -2372,9 +2406,17 @@ document.addEventListener('DOMContentLoaded', () => {
     photos.forEach(photo => {
       const card = document.createElement('div');
       card.className = 'photo-card';
-      const coordsText = (photo.lat !== null && photo.lng !== null && !isNaN(photo.lat) && !isNaN(photo.lng))
-        ? `${photo.lat.toFixed(5)}°, ${photo.lng.toFixed(5)}°`
-        : '📍 Sin GPS directo';
+      let coordsText = '📍 Sin GPS directo';
+      if (photo.lat !== null && photo.lng !== null && !isNaN(photo.lat) && !isNaN(photo.lng)) {
+        let tag = '';
+        if (photo.geotagSource === 'exif') tag = ' (EXIF)';
+        else if (photo.geotagSource === 'favoritos') tag = ' (Parada)';
+        else if (photo.geotagSource === 'timestamp') tag = ' (Ruta)';
+        else if (photo.geotagSource === 'manual') tag = ' (Manual)';
+        coordsText = `${photo.lat.toFixed(5)}°, ${photo.lng.toFixed(5)}°${tag}`;
+      } else {
+        coordsText = '📍 Sin GPS (Arrastra al mapa)';
+      }
 
       card.innerHTML = `
         <img src="${photo.url}" alt="${photo.name}" class="photo-thumbnail" draggable="false" />
