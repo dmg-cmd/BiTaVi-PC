@@ -2188,6 +2188,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (textFilesMap.has('rutas.txt') || textFilesMap.has('puntos.txt') || textFilesMap.has('marcadores.txt') || textFilesMap.has('favoritos.txt')) {
+          if (textFilesMap.has('rutas.txt') && !textFilesMap.has('puntos.txt')) {
+            alert('⚠️ Has cargado "rutas.txt" pero falta "puntos.txt". Las rutas necesitan "puntos.txt" para trazar sus coordenadas en el mapa. Selecciona ambos archivos juntos o carga el archivo .ZIP completo del backup.');
+          }
           updateProgress(75, 'Interpretando telemetría de BiTaVi...', 'Calculando coordenadas...');
           const nativeStats = nativeParser.processNativeData(textFilesMap);
           currentRouteBounds = nativeParser.renderRoute('all');

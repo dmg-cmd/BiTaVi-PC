@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.1-alpha`
+- **Versión Actual**: `v1.1.2-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,10 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.2-alpha` (2026-10-22)
+- **Advertencia Diagnóstica Interactiva y Resistencia en Selección Parcial de Archivos de Telemetría**:
+  - Detección proactiva si el usuario selecciona `rutas.txt` sin `puntos.txt`, explicando mediante notificación en pantalla la necesidad de cargar ambos o el `.ZIP` completo para renderizar los trazos en el mapa.
 
 ### `v1.1.1-alpha` (2026-10-22)
 - **Corrección Crítica de Extracción EXIF GPS en Fotos y Soporte Recursivo de Carpetas Arrastradas**:
