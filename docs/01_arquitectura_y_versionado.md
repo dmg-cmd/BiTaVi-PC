@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.3-alpha`
+- **Versión Actual**: `v1.1.4-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,12 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.4-alpha` (2026-10-22)
+- **Barra de Menús Superior Táctica y Pestañas de Navegación Compacta en el Panel**:
+  - **Barra de Menús Superior (`.top-menu-bar`)**: Menús desplegables en el encabezado (`📁 Archivo`, `🗺️ Ver`, `🌐 Capas`, `⚡ Táctica`) con acceso directo e instantáneo a todas las funciones sin necesidad de desplazarse por el panel lateral.
+  - **Pestañas Superiores del Panel Lateral (`.sidebar-tabs`)**: Barra de pestañas horizontal compacta (`📋 Todo`, `🏁 Rutas`, `📷 Fotos`, `🗺️ Capas`, `📦 Cargar`, `🔍 Análisis`) que muestra exclusivamente la sección elegida, evitando el scroll vertical prolongado.
+  - **Enfoque Reactivo Automático**: Al cargar rutas o fotos, el panel lateral conmuta automáticamente a la pestaña correspondiente en la parte superior.
 
 ### `v1.1.3-alpha` (2026-10-22)
 - **Soporte Universal de Rutas, Puntos y Geodatos en Formato JSON / GeoJSON (`parseJsonData` y `parseGeoJson`)**:

@@ -2285,13 +2285,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await photoHandler.processPhotoFiles(imageFiles, allRoutePoints, photoGeoMap);
       updatePhotosGallery(result.allPhotos);
       statPhotosCount.textContent = result.allPhotos.length;
+      if (typeof setActiveSidebarTab === 'function') {
+        setActiveSidebarTab('photos');
+      }
     }
 
-    // Si se cargaron rutas o waypoints, enfocar la sección de telemetría y selección
+    // Si se cargaron rutas o waypoints, activar automáticamente la pestaña de Rutas en la parte superior
     if (nativeParser.routes && nativeParser.routes.length > 0) {
-      const statsSection = document.getElementById('section-route-stats');
-      if (statsSection) {
-        statsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (typeof setActiveSidebarTab === 'function') {
+        setActiveSidebarTab('routes');
       }
     }
 
@@ -2838,6 +2840,185 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Download Report JSON
+
+  // ========================================================
+  // 1. Sistema de Pestañas Superiores del Panel Lateral (Sidebar Tabs)
+  // ========================================================
+  const sidebarTabButtons = document.querySelectorAll('.sidebar-tab-btn');
+  const sidebarSections = document.querySelectorAll('.panel-section[data-tab-section]');
+  const sidebarScrollable = document.querySelector('.sidebar-scrollable');
+
+  function setActiveSidebarTab(tabName) {
+    if (sidebar && sidebar.classList.contains('collapsed')) {
+      sidebar.classList.remove('collapsed');
+      sidebarVisible = true;
+    }
+
+    sidebarTabButtons.forEach(btn => {
+      if (btn.dataset.tab === tabName) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    sidebarSections.forEach(sec => {
+      const secTab = sec.dataset.tabSection;
+      if (tabName === 'all' || secTab === tabName) {
+        sec.classList.remove('tab-hidden');
+      } else {
+        sec.classList.add('tab-hidden');
+      }
+    });
+
+    if (sidebarScrollable) {
+      sidebarScrollable.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  sidebarTabButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveSidebarTab(btn.dataset.tab);
+    });
+  });
+
+  // ========================================================
+  // 2. Sistema de Menú Superior Táctico (Top Menu Bar)
+  // ========================================================
+  const topMenuDropdowns = document.querySelectorAll('.top-menu-dropdown');
+
+  function closeAllTopMenus() {
+    topMenuDropdowns.forEach(dd => {
+      const btn = dd.querySelector('.top-menu-btn');
+      const popup = dd.querySelector('.top-menu-popup');
+      if (btn) btn.classList.remove('active');
+      if (popup) popup.classList.add('hidden');
+    });
+  }
+
+  topMenuDropdowns.forEach(dd => {
+    const btn = dd.querySelector('.top-menu-btn');
+    const popup = dd.querySelector('.top-menu-popup');
+    if (btn && popup) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = popup.classList.contains('hidden');
+        closeAllTopMenus();
+        if (isHidden) {
+          popup.classList.remove('hidden');
+          btn.classList.add('active');
+        }
+      });
+    }
+  });
+
+  document.addEventListener('click', () => {
+    closeAllTopMenus();
+  });
+
+  const bindMenuAction = (id, handler) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeAllTopMenus();
+        handler();
+      });
+    }
+  };
+
+  // Menú Archivo
+  bindMenuAction('menu-action-load-zip', () => {
+    setActiveSidebarTab('load');
+    fileInput.click();
+  });
+  bindMenuAction('menu-action-load-gpx', () => {
+    setActiveSidebarTab('load');
+    fileInput.click();
+  });
+  bindMenuAction('menu-action-connect-folder', () => {
+    btnBrowseFolder?.click();
+  });
+  bindMenuAction('menu-action-gdrive', () => {
+    openGdriveModal();
+  });
+  bindMenuAction('menu-action-save-combined', () => {
+    saveCombinedRoute();
+  });
+  bindMenuAction('menu-action-save-by-day', () => {
+    saveRoutesByDay();
+  });
+  bindMenuAction('menu-action-save-zip', () => {
+    saveSelectedRoutesZip();
+  });
+  bindMenuAction('menu-action-export-kmz', () => {
+    btnSaveSelectedKmz?.click();
+  });
+  bindMenuAction('menu-action-clear-map', () => {
+    btnClearRoute?.click();
+  });
+
+  // Menú Ver
+  bindMenuAction('menu-action-tab-routes', () => {
+    setActiveSidebarTab('routes');
+  });
+  bindMenuAction('menu-action-tab-photos', () => {
+    setActiveSidebarTab('photos');
+  });
+  bindMenuAction('menu-action-tab-layers', () => {
+    setActiveSidebarTab('layers');
+  });
+  bindMenuAction('menu-action-tab-load', () => {
+    setActiveSidebarTab('load');
+  });
+  bindMenuAction('menu-action-tab-analysis', () => {
+    setActiveSidebarTab('analysis');
+  });
+  bindMenuAction('menu-action-tab-all', () => {
+    setActiveSidebarTab('all');
+  });
+  bindMenuAction('menu-action-toggle-panel', () => {
+    btnToggleSidebar?.click();
+  });
+
+  // Menú Capas Rápidas
+  document.querySelectorAll('[data-quick-layer]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeAllTopMenus();
+      const layerKey = btn.dataset.quickLayer;
+      if (layerKey && mapInstance) {
+        mapInstance.switchTileLayer(layerKey);
+        layerCards.forEach(card => {
+          if (card.dataset.layer === layerKey) {
+            card.classList.add('active');
+          } else {
+            card.classList.remove('active');
+          }
+        });
+        cursorCoords.textContent = `🌐 Capa cambiada a: ${btn.textContent.trim()}`;
+      }
+    });
+  });
+
+  // Menú Herramientas Tácticas
+  bindMenuAction('menu-action-simulate', () => {
+    btnSimulateRoute?.click();
+  });
+  bindMenuAction('menu-action-gps-locate', () => {
+    btnLocate?.click();
+  });
+  bindMenuAction('menu-action-set-manual', () => {
+    btnSetManual?.click();
+  });
+  bindMenuAction('menu-action-share-card', () => {
+    btnShareCard?.click();
+  });
+  bindMenuAction('menu-action-load-demo', () => {
+    loadDemoBackupZip();
+  });
+
   if (btnDownloadZipReport) {
     btnDownloadZipReport.addEventListener('click', () => {
       if (!lastExtractedZipData) return;

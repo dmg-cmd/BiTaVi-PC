@@ -1860,3 +1860,155 @@ body.tactical-dark {
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
 }
 
+/* ========================================================
+   Barra de Menús Superior Táctica (Top Menu Bar)
+   ======================================================== */
+.top-menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.5rem;
+}
+
+.top-menu-dropdown {
+  position: relative;
+}
+
+.top-menu-btn {
+  background: rgba(18, 24, 38, 0.65);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.35rem 0.65rem;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+}
+
+.top-menu-btn:hover,
+.top-menu-btn.active {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+}
+
+.top-menu-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 230px;
+  background: rgba(9, 13, 22, 0.96);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.75), 0 0 15px rgba(0, 240, 255, 0.15);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 2500;
+}
+
+.top-menu-popup.hidden {
+  display: none !important;
+}
+
+.top-menu-popup .menu-item {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-family: var(--font-ui);
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 0.45rem 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: var(--transition-fast);
+}
+
+.top-menu-popup .menu-item:hover {
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--accent-cyan);
+  transform: translateX(2px);
+}
+
+.top-menu-popup .menu-item.menu-danger {
+  color: var(--accent-rose);
+}
+
+.top-menu-popup .menu-item.menu-danger:hover {
+  background: rgba(244, 63, 94, 0.2);
+  color: #fff;
+}
+
+.top-menu-popup .menu-separator {
+  height: 1px;
+  background: rgba(56, 189, 248, 0.18);
+  margin: 0.25rem 0.35rem;
+}
+
+/* ========================================================
+   Pestañas Superiores del Panel Lateral (Sidebar Tabs)
+   ======================================================== */
+.sidebar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0.4rem 0.65rem;
+  background: rgba(7, 10, 18, 0.85);
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sidebar-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-tab-btn {
+  background: rgba(18, 24, 38, 0.5);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.67rem;
+  font-weight: 700;
+  padding: 0.3rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: var(--transition-fast);
+}
+
+.sidebar-tab-btn:hover {
+  background: rgba(0, 240, 255, 0.1);
+  color: var(--text-main);
+  border-color: rgba(0, 240, 255, 0.3);
+}
+
+.sidebar-tab-btn.active {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+}
+
+/* Ocultar secciones no activas cuando hay pestaña seleccionada */
+.panel-section.tab-hidden {
+  display: none !important;
+}
+
