@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.0-alpha`
+- **Versión Actual**: `v1.1.1-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,13 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.1-alpha` (2026-10-22)
+- **Corrección Crítica de Extracción EXIF GPS en Fotos y Soporte Recursivo de Carpetas Arrastradas**:
+  - **Detección Directa de Coordenadas GPS en Fotografías (`photo-parser.js`)**: Se corrigió el error donde `exifr.parse(file, ['latitude', 'longitude'])` fallaba en calcular las coordenadas devolviendo `undefined` para todas las imágenes. Ahora se invoca `exifr.gps(file)` directamente, recuperando con 100% de precisión la latitud, longitud, altitud y cámara de las fotos tomadas con el celular (Google Pixel 9 Pro XL, Samsung, etc.).
+  - **Geolocalización Automática de Fotos de Galería por Paradas / Favoritos (`favoritos.txt`)**: Las fotos importadas de la galería que no poseían EXIF directo por restricciones del sistema Android se asocian y posicionan en el mapa a través de las coordenadas del waypoint/parada registrado en `favoritos.txt`.
+  - **Soporte Drag & Drop Recursivo de Carpetas Completas (`main.js`)**: Al arrastrar una carpeta de viaje al mapa o al dropzone (carpeta descomprimida de Android o backup), se procesa el árbol de directorios con `webkitGetAsEntry` / `createReader` recursivo para leer automáticamente `rutas.txt`, `puntos.txt`, fotos e imágenes.
+  - **Scroll Automático hacia la Telemetría de Rutas**: Al cargar rutas desde cualquier origen, la interfaz enfoca automáticamente la sección `#section-route-stats` en el panel lateral.
 
 ### `v1.1.0-alpha` (2026-10-22)
 - **Separación Real de Días en Rutas de Backups Android (`rutas.txt`), Fechas en Español y Extracción Masiva de GPX en ZIP**:

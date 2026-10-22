@@ -258,9 +258,9 @@ export class BiTaViNativeParser {
       const timestamp = parts[13] ? parseInt(parts[13]) : null;
       const photoUrl = parts[6] || '';
 
-      // Extraer el nombre del archivo de foto desde el content:// URI
-      const photoFileMatch = photoUrl.match(/(IMG[^/\\]*\.(?:jpg|jpeg|png|webp|heic))/i);
-      const photoFile = photoFileMatch ? photoFileMatch[1] : null;
+      // Extraer el nombre del archivo de foto desde el content:// URI o ruta
+      const photoFileMatch = photoUrl.match(/([^/\\?#]+?\.(?:jpg|jpeg|png|webp|heic))/i);
+      const photoFile = photoFileMatch ? photoFileMatch[1].trim() : null;
 
       return { name, address, lat, lng, desc, type, color, timestamp, photoUrl, photoFile };
     }).filter(f => !isNaN(f.lat) && !isNaN(f.lng));

@@ -25,39 +25,50 @@ export class PhotoHandler {
         let hasGps = false;
         let ts = null;
 
-        // 1. Intentar extraer metadatos EXIF
+        // 1. Intentar extraer coordenadas GPS directas de los metadatos EXIF
         try {
-          const exifData = await exifr.parse(file, [
-            'latitude',
-            'longitude',
-            'GPSAltitude',
-            'DateTimeOriginal',
-            'Make',
-            'Model'
-          ]);
-
-          if (exifData) {
-            if (exifData.latitude && exifData.longitude) {
-              lat = exifData.latitude;
-              lng = exifData.longitude;
-              hasGps = true;
-            }
-            if (exifData.GPSAltitude) alt = Math.round(exifData.GPSAltitude);
-            if (exifData.DateTimeOriginal) {
-              dateStr = new Date(exifData.DateTimeOriginal).toLocaleString();
-              ts = exifData.DateTimeOriginal.getTime();
-            }
-            if (exifData.Make || exifData.Model) camera = `${exifData.Make || ''} ${exifData.Model || ''}`.trim();
+          const gps = await exifr.gps(file);
+          if (gps && typeof gps.latitude === 'number' && !isNaN(gps.latitude) &&
+              typeof gps.longitude === 'number' && !isNaN(gps.longitude)) {
+            lat = gps.latitude;
+            lng = gps.longitude;
+            hasGps = true;
           }
         } catch (e) {
-          // EXIF ausente o no legible
+          // EXIF GPS ausente o no legible
+        }
+
+        // Metadatos EXIF complementarios (cámara, altitud, fecha de captura)
+        try {
+          const exifData = await exifr.parse(file, {
+            pick: ['DateTimeOriginal', 'Make', 'Model', 'GPSAltitude']
+          });
+
+          if (exifData) {
+            if (exifData.GPSAltitude && !isNaN(exifData.GPSAltitude)) {
+              alt = Math.round(exifData.GPSAltitude);
+            }
+            if (exifData.DateTimeOriginal) {
+              const dt = new Date(exifData.DateTimeOriginal);
+              if (!isNaN(dt.getTime())) {
+                dateStr = dt.toLocaleString();
+                ts = dt.getTime();
+              }
+            }
+            if (exifData.Make || exifData.Model) {
+              camera = `${exifData.Make || ''} ${exifData.Model || ''}`.trim();
+            }
+          }
+        } catch (e) {
+          // EXIF adicional no disponible
         }
 
         // 2. Si no hay GPS en EXIF, intentar geolocalización por mapa de favoritos (BiTaVi Android)
         //    Las paradas/favoritos en favoritos.txt guardan la foto asociada y sus coordenadas.
         if (!hasGps && photoGeoMap) {
-          const geo = photoGeoMap.get(file.name.toLowerCase());
-          if (geo) {
+          const cleanName = file.name.split('/').pop().toLowerCase().trim();
+          const geo = photoGeoMap.get(cleanName);
+          if (geo && typeof geo.lat === 'number' && !isNaN(geo.lat) && typeof geo.lng === 'number' && !isNaN(geo.lng)) {
             lat = geo.lat;
             lng = geo.lng;
             hasGps = true;
@@ -67,35 +78,36 @@ export class PhotoHandler {
         // 3. Si aún no hay GPS, intentar geotagging por timestamp del nombre de archivo (BiTaVi Android)
         //    Ejemplo: IMG_GALLERY_1782930974104.jpg o IMG_1783348610593_xxx.jpg
         const tsMatch = file.name.match(/(\d{13})/);
-        if (!hasGps && tsMatch && routePoints.length > 0) {
+        if (tsMatch) {
           const fileTimestamp = parseInt(tsMatch[1], 10);
-          dateStr = new Date(fileTimestamp).toLocaleString();
-          ts = fileTimestamp;
+          const d = new Date(fileTimestamp);
+          if (!isNaN(d.getTime()) && (dateStr === 'Fecha no disponible' || !ts)) {
+            dateStr = d.toLocaleString();
+            ts = fileTimestamp;
+          }
 
-          // Buscar el punto GPS con timestamp más cercano (dentro de un rango razonable)
-          let closestPoint = null;
-          let minDiff = Infinity;
+          if (!hasGps && routePoints.length > 0) {
+            // Buscar el punto GPS con timestamp más cercano (dentro de un rango razonable)
+            let closestPoint = null;
+            let minDiff = Infinity;
 
-          for (const pt of routePoints) {
-            if (pt.timestamp && pt.timestamp > 0) {
-              const diff = Math.abs(pt.timestamp - fileTimestamp);
-              if (diff < minDiff) {
-                minDiff = diff;
-                closestPoint = pt;
+            for (const pt of routePoints) {
+              if (pt.timestamp && pt.timestamp > 0) {
+                const diff = Math.abs(pt.timestamp - fileTimestamp);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  closestPoint = pt;
+                }
               }
             }
-          }
 
-          if (closestPoint && minDiff < 3600000) { // dentro de 1 hora
-            lat = closestPoint.lat;
-            lng = closestPoint.lng;
-            alt = closestPoint.ele ? Math.round(closestPoint.ele) : null;
-            hasGps = true;
+            if (closestPoint && minDiff < 3600000) { // dentro de 1 hora
+              lat = closestPoint.lat;
+              lng = closestPoint.lng;
+              alt = closestPoint.ele ? Math.round(closestPoint.ele) : null;
+              hasGps = true;
+            }
           }
-        } else if (tsMatch && dateStr === 'Fecha no disponible') {
-          const fileTimestamp = parseInt(tsMatch[1], 10);
-          dateStr = new Date(fileTimestamp).toLocaleString();
-          ts = fileTimestamp;
         }
 
         const objectUrl = URL.createObjectURL(file);
@@ -126,9 +138,10 @@ export class PhotoHandler {
       }
     }
 
-    // If photos with GPS were added, fit bounds if no active route bounds
+    // Si se agregaron fotos y no hay rutas activas en el mapa, encuadrar fotos
     const geoPhotos = newPhotos.filter(p => p.lat !== null && p.lng !== null && !isNaN(p.lat) && !isNaN(p.lng));
-    if (geoPhotos.length > 0) {
+    const hasActiveRoutes = this.mapInstance?.routesLayerGroup?.getLayers()?.length > 0;
+    if (geoPhotos.length > 0 && !hasActiveRoutes) {
       const bounds = L.latLngBounds(geoPhotos.map(p => [p.lat, p.lng]));
       if (bounds.isValid()) {
         this.mapInstance.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });

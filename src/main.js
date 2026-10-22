@@ -1941,7 +1941,63 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  window.addEventListener('drop', (e) => {
+  // Extracción recursiva de archivos arrastrados (soporta soltar carpetas completas y archivos múltiples)
+  async function extractDroppedFiles(dataTransfer) {
+    if (!dataTransfer) return [];
+    const files = [];
+
+    if (dataTransfer.items && dataTransfer.items.length > 0) {
+      const entries = [];
+      for (let i = 0; i < dataTransfer.items.length; i++) {
+        const item = dataTransfer.items[i];
+        if (typeof item.webkitGetAsEntry === 'function') {
+          const entry = item.webkitGetAsEntry();
+          if (entry) entries.push(entry);
+        }
+      }
+
+      if (entries.length > 0) {
+        const readEntry = async (entry) => {
+          if (entry.isFile) {
+            return new Promise((resolve) => {
+              entry.file((f) => {
+                files.push(f);
+                resolve();
+              }, () => resolve());
+            });
+          } else if (entry.isDirectory) {
+            const dirReader = entry.createReader();
+            return new Promise((resolve) => {
+              const readEntries = () => {
+                dirReader.readEntries(async (subEntries) => {
+                  if (!subEntries || subEntries.length === 0) {
+                    resolve();
+                  } else {
+                    for (const sub of subEntries) {
+                      await readEntry(sub);
+                    }
+                    readEntries();
+                  }
+                }, () => resolve());
+              };
+              readEntries();
+            });
+          }
+        };
+
+        for (const entry of entries) {
+          await readEntry(entry);
+        }
+      }
+    }
+
+    if (files.length === 0 && dataTransfer.files) {
+      return Array.from(dataTransfer.files);
+    }
+    return files;
+  }
+
+  window.addEventListener('drop', async (e) => {
     e.preventDefault();
     if (e.dataTransfer) {
       const photoId = e.dataTransfer.getData('application/x-bitavi-photo');
@@ -1953,8 +2009,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
     }
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(e.dataTransfer.files);
+    if (e.dataTransfer) {
+      const droppedFiles = await extractDroppedFiles(e.dataTransfer);
+      if (droppedFiles && droppedFiles.length > 0) {
+        await handleFiles(droppedFiles);
+      }
     }
   });
 
@@ -1974,12 +2033,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  dropzone.addEventListener('drop', (e) => {
+  dropzone.addEventListener('drop', async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const dt = e.dataTransfer;
-    const files = dt.files;
-    handleFiles(files);
+    const droppedFiles = await extractDroppedFiles(e.dataTransfer);
+    if (droppedFiles && droppedFiles.length > 0) {
+      await handleFiles(droppedFiles);
+    }
   });
 
    // Main file processing router
@@ -2167,9 +2227,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Process Individual Photo Files (if not already processed with native text files)
     if (imageFiles.length > 0 && textFiles.length === 0 && zipFiles.length === 0) {
-      const result = await photoHandler.processPhotoFiles(imageFiles);
+      const allRoutePoints = Array.from(nativeParser.pointsByRoute.values()).flat();
+      const photoGeoMap = nativeParser.getPhotoGeoMap ? nativeParser.getPhotoGeoMap() : null;
+      const result = await photoHandler.processPhotoFiles(imageFiles, allRoutePoints, photoGeoMap);
       updatePhotosGallery(result.allPhotos);
       statPhotosCount.textContent = result.allPhotos.length;
+    }
+
+    // Si se cargaron rutas o waypoints, enfocar la sección de telemetría y selección
+    if (nativeParser.routes && nativeParser.routes.length > 0) {
+      const statsSection = document.getElementById('section-route-stats');
+      if (statsSection) {
+        statsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }
 
     // Refrescar el catálogo del buscador táctico local con todas las entidades cargadas
