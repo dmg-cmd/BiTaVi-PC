@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { BiTaViNativeParser } from '../src/components/bitavi-native-parser.js';
+import { BiTaViNativeParser, parseFlexibleTimestamp } from '../src/components/bitavi-native-parser.js';
 
 describe('Parser de Formato Nativo BiTaVi Android (bitavi-native-parser.js)', () => {
   const mockMapInstance = {
     map: {
       addLayer: () => {},
       removeLayer: () => {}
-    }
+    },
+    routesLayerGroup: { clearLayers: () => {}, addLayer: () => {} },
+    routeMarkersLayerGroup: { clearLayers: () => {}, addLayer: () => {} },
+    addRouteArrows: () => ({ clearLayers: () => {} })
   };
 
   it('parseRoutes parsea correctamente el formato rutas.txt separado por pipes', () => {
@@ -62,5 +65,35 @@ describe('Parser de Formato Nativo BiTaVi Android (bitavi-native-parser.js)', ()
     expect(parser.markers[0].desc).toBe('Base logística de expedición');
     expect(parser.markers[0].lat).toBe(-34.6037);
     expect(parser.markers[0].lng).toBe(-58.3816);
+  });
+
+  it('parseFlexibleTimestamp procesa segundos, milisegundos y formatos de texto', () => {
+    // Segundos Unix (10 dígitos)
+    expect(parseFlexibleTimestamp(1719430000)).toBe(1719430000000);
+    // Milisegundos
+    expect(parseFlexibleTimestamp(1719430000000)).toBe(1719430000000);
+    // Texto ISO
+    const isoDate = parseFlexibleTimestamp('2026-06-26 14:30:00');
+    expect(isoDate).not.toBeNull();
+    expect(new Date(isoDate).toISOString().split('T')[0]).toBe('2026-06-26');
+    // Texto DD/MM/YYYY
+    const dmyDate = parseFlexibleTimestamp('26/06/2026 10:00:00');
+    expect(dmyDate).not.toBeNull();
+    expect(new Date(dmyDate).getFullYear()).toBe(2026);
+  });
+
+  it('processNativeData hereda startTime a la ruta si viene vacío en rutas.txt pero presente en puntos.txt', () => {
+    const parser = new BiTaViNativeParser(mockMapInstance);
+    const map = new Map();
+    // rutas.txt sin startTime (vacío en parts[2])
+    map.set('rutas.txt', '10|Ruta Sin Fecha Inicial|||5000|10|5');
+    // puntos.txt con timestamp de fecha
+    map.set('puntos.txt', '10|-34.60|-58.38|20|4|1719430000'); // en segundos -> 2024-06-26
+
+    parser.processNativeData(map);
+
+    expect(parser.routes.length).toBe(1);
+    expect(parser.routes[0].startTime).toBe(1719430000000);
+    expect(parser.routes[0].startDate).not.toBe('Fecha N/D');
   });
 });

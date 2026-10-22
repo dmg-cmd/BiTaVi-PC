@@ -309,50 +309,146 @@ ${trksegsXml}  </trk>
 }
 
 /**
- * Extrae una cadena de fecha limpia en formato YYYY-MM-DD para nombrar archivos a partir de los datos de una ruta.
- * Prioriza: startTime de la ruta -> time/timestamp del primer punto -> fecha en el nombre -> fecha actual.
+ * Extrae una fecha en formato YYYY-MM-DD a partir de un texto (nombre de ruta, archivo o cadena de fecha).
+ * Soporta YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD, DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYYMMDD y DDMMYYYY.
+ * @param {string} text
+ * @returns {string|null}
+ */
+export function extractDateFromName(text) {
+  if (!text || typeof text !== 'string') return null;
+
+  // 1. Formato YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD o YYYY_MM_DD
+  const mYmd = text.match(/(?:^|[^0-9])(20\d{2})[-/._]([01]?\d)[-/._]([0-3]?\d)(?:[^0-9]|$)/);
+  if (mYmd) {
+    const y = mYmd[1];
+    const m = mYmd[2].padStart(2, '0');
+    const d = mYmd[3].padStart(2, '0');
+    const mNum = parseInt(m, 10);
+    const dNum = parseInt(d, 10);
+    if (mNum >= 1 && mNum <= 12 && dNum >= 1 && dNum <= 31) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // 2. Formato DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY o DD_MM_YYYY
+  const mDmy = text.match(/(?:^|[^0-9])([0-3]?\d)[-/._]([01]?\d)[-/._](20\d{2})(?:[^0-9]|$)/);
+  if (mDmy) {
+    const d = mDmy[1].padStart(2, '0');
+    const m = mDmy[2].padStart(2, '0');
+    const y = mDmy[3];
+    const dNum = parseInt(d, 10);
+    const mNum = parseInt(m, 10);
+    if (mNum >= 1 && mNum <= 12 && dNum >= 1 && dNum <= 31) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // 3. Formato compacto YYYYMMDD (ej: backup_20260626, 20260626_2305)
+  const mCompactYmd = text.match(/(?:^|[^0-9])(20\d{2})([01]\d)([0-3]\d)(?:[^0-9]|$)/);
+  if (mCompactYmd) {
+    const y = mCompactYmd[1];
+    const m = mCompactYmd[2];
+    const d = mCompactYmd[3];
+    const mNum = parseInt(m, 10);
+    const dNum = parseInt(d, 10);
+    if (mNum >= 1 && mNum <= 12 && dNum >= 1 && dNum <= 31) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // 4. Formato compacto DDMMYYYY (ej: ruta_26062026)
+  const mCompactDmy = text.match(/(?:^|[^0-9])([0-3]\d)([01]\d)(20\d{2})(?:[^0-9]|$)/);
+  if (mCompactDmy) {
+    const d = mCompactDmy[1];
+    const m = mCompactDmy[2];
+    const y = mCompactDmy[3];
+    const dNum = parseInt(d, 10);
+    const mNum = parseInt(m, 10);
+    if (mNum >= 1 && mNum <= 12 && dNum >= 1 && dNum <= 31) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extrae una cadena de fecha limpia en formato YYYY-MM-DD para nombrar archivos y agrupar rutas.
+ * Prioriza: startTime de la ruta -> puntos GPS con time/timestamp -> nombre de la ruta -> id -> 'Sin Fecha'.
  * @param {object} route
  * @param {Array<object>} points
- * @returns {string} Fecha en formato YYYY-MM-DD
+ * @returns {string} Fecha en formato YYYY-MM-DD o 'Sin Fecha'
  */
 export function extractRouteDateSlug(route, points = []) {
   // 1. Probar startTime de la ruta
   if (route && route.startTime) {
-    const d = new Date(route.startTime);
-    if (!isNaN(d.getTime())) {
-      return d.toISOString().split('T')[0];
+    const num = Number(route.startTime);
+    if (!isNaN(num) && num > 0) {
+      const ms = (num > 1000000000 && num < 10000000000) ? num * 1000 : num;
+      const d = new Date(ms);
+      if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+        return d.toISOString().split('T')[0];
+      }
+    } else if (typeof route.startTime === 'string') {
+      const fromStr = extractDateFromName(route.startTime);
+      if (fromStr) return fromStr;
     }
   }
 
-  // 2. Probar primer punto con time o timestamp
+  // 2. Probar puntos de la ruta (examinar los primeros 30 puntos por si alguno tiene fecha)
   if (points && points.length > 0) {
-    const firstPt = points[0];
-    if (firstPt.time) {
-      const matchIso = String(firstPt.time).match(/\b(\d{4}-\d{2}-\d{2})\b/);
-      if (matchIso) return matchIso[1];
-      const d = new Date(firstPt.time);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-    }
-    if (firstPt.timestamp) {
-      const d = new Date(firstPt.timestamp);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    const maxScan = Math.min(points.length, 30);
+    for (let i = 0; i < maxScan; i++) {
+      const pt = points[i];
+      if (pt.timestamp) {
+        const num = Number(pt.timestamp);
+        if (!isNaN(num) && num > 0) {
+          const ms = (num > 1000000000 && num < 10000000000) ? num * 1000 : num;
+          const d = new Date(ms);
+          if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+            return d.toISOString().split('T')[0];
+          }
+        }
+      }
+      if (pt.time) {
+        const fromTime = extractDateFromName(String(pt.time));
+        if (fromTime) return fromTime;
+        const d = new Date(pt.time);
+        if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+          return d.toISOString().split('T')[0];
+        }
+      }
     }
   }
 
-  // 3. Probar fecha en el nombre de la ruta (ej: "backup_20260626", "2026-06-26", "2026_06_26")
+  // 3. Probar nombre de la ruta (ej: "26/06/2026", "backup_20260626", "Ruta 26-06-2026")
   if (route && route.name) {
-    const matchDelim = route.name.match(/(?:^|[^0-9])(20\d{2})[-_]([01]\d)[-_]([0-3]\d)(?:[^0-9]|$)/);
-    if (matchDelim) {
-      return `${matchDelim[1]}-${matchDelim[2]}-${matchDelim[3]}`;
-    }
-    const matchCompact = route.name.match(/(?:^|[^0-9])(20\d{2})([01]\d)([0-3]\d)(?:[^0-9]|$)/);
-    if (matchCompact) {
-      return `${matchCompact[1]}-${matchCompact[2]}-${matchCompact[3]}`;
+    const fromName = extractDateFromName(route.name);
+    if (fromName) return fromName;
+  }
+
+  // 4. Probar route.startDate si existe y no es 'Fecha N/D'
+  if (route && route.startDate && route.startDate !== 'Fecha N/D') {
+    const fromStart = extractDateFromName(route.startDate);
+    if (fromStart) return fromStart;
+  }
+
+  // 5. Probar route.id (por si es un timestamp o contiene fecha)
+  if (route && route.id) {
+    const fromId = extractDateFromName(String(route.id));
+    if (fromId) return fromId;
+    const numId = Number(route.id);
+    if (!isNaN(numId) && numId > 1000000000) {
+      const ms = (numId < 10000000000) ? numId * 1000 : numId;
+      const d = new Date(ms);
+      if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+        return d.toISOString().split('T')[0];
+      }
     }
   }
 
-  // 4. Fallback: fecha actual del sistema
-  return new Date().toISOString().split('T')[0];
+  // 6. Si no tiene fecha detectable, clasificar como 'Sin Fecha' (no asignar fecha de hoy)
+  return 'Sin Fecha';
 }
 
 /**
@@ -375,8 +471,13 @@ export function groupRoutesByDay(routes = [], pointsByRouteMap = new Map()) {
     grouped.get(dateSlug).push(r);
   }
 
-  // Ordenar cronológicamente por fecha
-  const sortedKeys = Array.from(grouped.keys()).sort();
+  // Ordenar cronológicamente por fecha, dejando 'Sin Fecha' al final
+  const sortedKeys = Array.from(grouped.keys()).sort((a, b) => {
+    if (a === 'Sin Fecha') return 1;
+    if (b === 'Sin Fecha') return -1;
+    return a.localeCompare(b);
+  });
+
   const sortedMap = new Map();
   for (const k of sortedKeys) {
     sortedMap.set(k, grouped.get(k));

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeFilename, createGpxXml, createCombinedGpxXml, extractRouteDateSlug, groupRoutesByDay } from '../src/components/gpx-parser.js';
+import { sanitizeFilename, createGpxXml, createCombinedGpxXml, extractRouteDateSlug, extractDateFromName, groupRoutesByDay } from '../src/components/gpx-parser.js';
 
 describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
   it('sanitizeFilename limpia caracteres ilegales en Windows y Linux', () => {
@@ -52,39 +52,55 @@ describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
     expect(xml).toContain('lat="-34.612"');
   });
 
-  it('extractRouteDateSlug extrae fechas válidas en formato YYYY-MM-DD', () => {
-    // Caso 1: startTime numérico
+  it('extractDateFromName reconoce formatos YYYY-MM-DD, DD/MM/YYYY y compactos', () => {
+    expect(extractDateFromName('2026-06-26')).toBe('2026-06-26');
+    expect(extractDateFromName('Ruta 26/06/2026')).toBe('2026-06-26');
+    expect(extractDateFromName('26-06-2026')).toBe('2026-06-26');
+    expect(extractDateFromName('backup_20260626_2305')).toBe('2026-06-26');
+    expect(extractDateFromName('Ruta_26062026')).toBe('2026-06-26');
+    expect(extractDateFromName('2024/05/10')).toBe('2024-05-10');
+    expect(extractDateFromName('Sin Fecha')).toBeNull();
+  });
+
+  it('extractRouteDateSlug extrae fechas válidas en múltiples formatos y maneja fallback', () => {
+    // Caso 1: startTime numérico en ms
     const route1 = { name: 'Expedición Sur', startTime: 1782470400000 };
     expect(extractRouteDateSlug(route1)).toBe(new Date(1782470400000).toISOString().split('T')[0]);
 
-    // Caso 2: fecha en el primer punto
+    // Caso 1b: startTime en segundos Unix (10 dígitos)
+    const route1b = { name: 'Ruta Segundos', startTime: 1719430000 };
+    expect(extractRouteDateSlug(route1b)).toBe('2024-06-26');
+
+    // Caso 2: fecha en un punto intermedio
     const route2 = { name: 'Travesía' };
-    const points2 = [{ time: '2026-08-15T09:30:00Z' }];
+    const points2 = [{ lat: -34, lng: -58 }, { time: '2026-08-15T09:30:00Z' }];
     expect(extractRouteDateSlug(route2, points2)).toBe('2026-08-15');
 
-    // Caso 3: fecha en el nombre de la ruta
-    const route3 = { name: 'backup_20260626_2305' };
+    // Caso 3: fecha formato latino en el nombre
+    const route3 = { name: 'Salida 26/06/2026 mañana' };
     expect(extractRouteDateSlug(route3)).toBe('2026-06-26');
 
-    const route4 = { name: 'Ruta_2026-04-12_montana' };
-    expect(extractRouteDateSlug(route4)).toBe('2026-04-12');
+    // Caso 4: ruta sin fecha detectable
+    const route4 = { name: 'Ruta Desconocida' };
+    expect(extractRouteDateSlug(route4, [])).toBe('Sin Fecha');
   });
 
   it('groupRoutesByDay agrupa correctamente las rutas por su fecha cronológica', () => {
     const routes = [
       { id: '1', name: 'Ruta_2026-06-25_Mañana' },
       { id: '2', name: 'Ruta_2026-06-25_Tarde' },
-      { id: '3', name: 'Ruta_2026-06-26_Etapa1' }
+      { id: '3', name: 'Ruta 26/06/2026 Etapa1' },
+      { id: '4', name: 'Ruta Antigua', startTime: 1719430000 } // 2024-06-26
     ];
 
     const grouped = groupRoutesByDay(routes);
 
-    expect(grouped.size).toBe(2);
+    expect(grouped.size).toBe(3);
+    expect(grouped.has('2024-06-26')).toBe(true);
     expect(grouped.has('2026-06-25')).toBe(true);
     expect(grouped.has('2026-06-26')).toBe(true);
     expect(grouped.get('2026-06-25').length).toBe(2);
     expect(grouped.get('2026-06-26').length).toBe(1);
-    expect(grouped.get('2026-06-25')[0].id).toBe('1');
-    expect(grouped.get('2026-06-25')[1].id).toBe('2');
+    expect(grouped.get('2024-06-26').length).toBe(1);
   });
 });

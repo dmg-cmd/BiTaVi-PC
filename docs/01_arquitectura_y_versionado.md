@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.8-alpha`
+- **Versión Actual**: `v1.0.9-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,14 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.9-alpha` (2026-10-21)
+- **Corrección y Robustecimiento Integral de Detección Cronológica y Agrupación por Días**:
+  - **Función Universal `parseFlexibleTimestamp` (`src/components/bitavi-native-parser.js`)**: Interpreta con precisión timestamps en milisegundos, segundos Unix (10 dígitos), cadenas ISO y formatos con barras o guiones (`DD/MM/YYYY`, `YYYY-MM-DD`).
+  - **Función de Reconocimiento de Patrones `extractDateFromName` (`src/components/gpx-parser.js`)**: Detecta automáticamente fechas en nombres de rutas, archivos y backups con formatos latinoamericanos (`DD/MM/YYYY`, `DD-MM-YYYY`), estándar (`YYYY-MM-DD`, `YYYY/MM/DD`) y compactos (`YYYYMMDD`, `DDMMYYYY`).
+  - **Herencia Automática de Fechas entre Puntos y Rutas**: Si una ruta en `rutas.txt` carece de fecha o tiene valor nulo/0, el parser examina los puntos asociados en `puntos.txt` y le asigna el timestamp real del primer punto registrado.
+  - **Eliminación del Fallback de Fecha de Hoy**: Si una ruta no posee fecha detectable, se clasifica limpiamente como `'Sin Fecha'` en lugar de asignarle la fecha actual, impidiendo que decenas de rutas terminen agrupadas artificialmente en un solo día.
+  - **Pruebas Automatizadas**: 3 nuevas pruebas unitarias en `tests/gpx-tools.test.js` y `tests/native-parser.test.js` (28/28 pruebas unitarias exitosas).
 
 ### `v1.0.8-alpha` (2026-10-21)
 - **Separación de Rutas por Día y Unión Táctica Diaria (`groupRoutesByDay`)**:

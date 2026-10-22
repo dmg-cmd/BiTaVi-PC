@@ -2,6 +2,47 @@ import L from 'leaflet';
 import { createGpxXml } from './gpx-parser.js';
 
 /**
+ * Parsea timestamps flexibles en formatos: milisegundos (>1e10), segundos Unix (1e9..1e10),
+ * cadenas ISO o formatos de fecha humanos (DD/MM/YYYY, YYYY-MM-DD, etc.).
+ * @param {string|number} val
+ * @returns {number|null} Timestamp en milisegundos o null si no es válido
+ */
+export function parseFlexibleTimestamp(val) {
+  if (val === null || val === undefined || val === '') return null;
+  const num = typeof val === 'number' ? val : Number(val);
+  if (!isNaN(num) && isFinite(num) && num > 0) {
+    if (num > 1000000000 && num < 10000000000) {
+      return num * 1000;
+    }
+    if (num >= 10000000000) {
+      return num;
+    }
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime()) && d.getFullYear() > 1990 && d.getFullYear() < 2100) {
+      return d.getTime();
+    }
+    const dmy = trimmed.match(/^([0-3]?\d)[/.-]([01]?\d)[/.-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (dmy) {
+      const day = parseInt(dmy[1], 10);
+      const month = parseInt(dmy[2], 10) - 1;
+      const year = parseInt(dmy[3], 10);
+      const hour = dmy[4] ? parseInt(dmy[4], 10) : 0;
+      const min = dmy[5] ? parseInt(dmy[5], 10) : 0;
+      const sec = dmy[6] ? parseInt(dmy[6], 10) : 0;
+      const parsedD = new Date(year, month, day, hour, min, sec);
+      if (!isNaN(parsedD.getTime())) {
+        return parsedD.getTime();
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Parser y Renderizador del Formato Nativo de Backup de BiTaVi Android
  * Procesa: rutas.txt, puntos.txt, marcadores.txt, favoritos.txt y carpeta images/
  */
@@ -48,7 +89,24 @@ export class BiTaViNativeParser {
       this.parseFavorites(textFilesMap.get('favoritos.txt'));
     }
 
-    // 5. Renderizar marcadores y favoritos en el mapa
+    // 5. Si alguna ruta no tiene startTime válido, heredar fecha del primer punto con timestamp
+    this.routes.forEach(r => {
+      if (!r.startTime) {
+        const pts = this.pointsByRoute.get(r.id);
+        if (pts && pts.length > 0) {
+          const firstWithTime = pts.find(p => p.timestamp || p.time);
+          if (firstWithTime) {
+            const parsedTs = parseFlexibleTimestamp(firstWithTime.timestamp || firstWithTime.time);
+            if (parsedTs) {
+              r.startTime = parsedTs;
+              r.startDate = new Date(parsedTs).toLocaleString();
+            }
+          }
+        }
+      }
+    });
+
+    // 6. Renderizar marcadores y favoritos en el mapa
     this.renderMarkersAndFavorites();
 
     return {
@@ -98,8 +156,8 @@ export class BiTaViNativeParser {
       const parts = line.split('|');
       const id = parts[0];
       const name = parts[1] || `Ruta ${id}`;
-      const startTime = parts[2] ? parseInt(parts[2]) : null;
-      const endTime = parts[3] ? parseInt(parts[3]) : null;
+      const startTime = parseFlexibleTimestamp(parts[2]);
+      const endTime = parseFlexibleTimestamp(parts[3]);
       const distanceM = parts[4] ? parseFloat(parts[4]) : 0;
       const maxSpeed = parts[5] ? parseFloat(parts[5]) : 0;
       const avgSpeed = parts[6] ? parseFloat(parts[6]) : 0;
@@ -134,7 +192,7 @@ export class BiTaViNativeParser {
       const lng = parseFloat(parts[2]);
       const ele = parts[3] ? parseFloat(parts[3]) : null;
       const speed = parts[4] ? parseFloat(parts[4]) : null;
-      const timestamp = parts[5] ? parseInt(parts[5]) : null;
+      const timestamp = parseFlexibleTimestamp(parts[5]);
 
       if (!isNaN(lat) && !isNaN(lng)) {
         if (!this.pointsByRoute.has(routeId)) {
@@ -460,12 +518,26 @@ export class BiTaViNativeParser {
       : this.calculateDistance(points);
     const distKm = (distM / 1000).toFixed(2);
 
+    let startTime = parseFlexibleTimestamp(routeData.startTime);
+    let endTime = parseFlexibleTimestamp(routeData.endTime);
+    if (!startTime && points && points.length > 0) {
+      const firstWithTime = points.find(p => p.time || p.timestamp);
+      if (firstWithTime) {
+        startTime = parseFlexibleTimestamp(firstWithTime.timestamp || firstWithTime.time);
+      }
+    }
+
+    let startDate = routeData.startDate;
+    if (!startDate || startDate === 'Fecha N/D') {
+      startDate = startTime ? new Date(startTime).toLocaleString() : 'Fecha N/D';
+    }
+
     const newRoute = {
       id,
       name: routeData.name || `Ruta ${this.routes.length + 1}`,
-      startTime: routeData.startTime || null,
-      endTime: routeData.endTime || null,
-      startDate: routeData.startDate || (points[0]?.time ? new Date(points[0].time).toLocaleString() : 'Fecha N/D'),
+      startTime: startTime || null,
+      endTime: endTime || null,
+      startDate,
       distanceKm: distKm,
       distanceM: Math.round(distM),
       maxSpeed: routeData.maxSpeed || '0.0',

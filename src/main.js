@@ -635,6 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
     allBox.addEventListener('change', (e) => {
       const isChecked = e.target.checked;
       routeSelector.querySelectorAll('.route-export-box').forEach(cb => { cb.checked = isChecked; });
+      routeSelector.querySelectorAll('.route-day-box').forEach(cb => { cb.checked = isChecked; });
       routes.forEach(r => nativeParser.setRouteVisibility(r.id, isChecked));
       routeSelector.querySelectorAll('.route-item-row').forEach(row => {
         const visBtn = row.querySelector('.btn-toggle-vis');
@@ -646,6 +647,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (visBtn) visBtn.textContent = '🙈';
         }
       });
+      routeSelector.querySelectorAll('.btn-toggle-day-vis').forEach(btn => {
+        btn.textContent = isChecked ? '👁️' : '🙈';
+      });
     });
 
     let allVisible = true;
@@ -653,6 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
       allVisible = !allVisible;
       allBox.checked = allVisible;
       routeSelector.querySelectorAll('.route-export-box').forEach(cb => { cb.checked = allVisible; });
+      routeSelector.querySelectorAll('.route-day-box').forEach(cb => { cb.checked = allVisible; });
       routes.forEach(r => nativeParser.setRouteVisibility(r.id, allVisible));
       routeSelector.querySelectorAll('.route-item-row').forEach(row => {
         const visBtn = row.querySelector('.btn-toggle-vis');
@@ -663,6 +668,9 @@ document.addEventListener('DOMContentLoaded', () => {
           row.classList.add('route-hidden-row');
           if (visBtn) visBtn.textContent = '🙈';
         }
+      });
+      routeSelector.querySelectorAll('.btn-toggle-day-vis').forEach(btn => {
+        btn.textContent = allVisible ? '👁️' : '🙈';
       });
     });
 
@@ -726,6 +734,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const allBoxes = Array.from(routeSelector.querySelectorAll('.route-export-box'));
         allBox.checked = allBoxes.every(b => b.checked);
+        const dayGroup = row.closest('.route-day-group');
+        if (dayGroup) {
+          const dayBox = dayGroup.querySelector('.route-day-box');
+          const dayBoxes = Array.from(dayGroup.querySelectorAll('.route-export-box'));
+          if (dayBox) dayBox.checked = dayBoxes.every(b => b.checked);
+        }
       });
 
       // Lógica de renombrado interactivo
@@ -782,6 +796,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const allBoxes = Array.from(routeSelector.querySelectorAll('.route-export-box'));
         allBox.checked = allBoxes.every(b => b.checked);
+        const dayGroup = row.closest('.route-day-group');
+        if (dayGroup) {
+          const dayBox = dayGroup.querySelector('.route-day-box');
+          const dayBoxes = Array.from(dayGroup.querySelectorAll('.route-export-box'));
+          if (dayBox) dayBox.checked = dayBoxes.every(b => b.checked);
+        }
       });
 
       // Guardar GPX individual directamente con su nombre
@@ -827,15 +847,17 @@ document.addEventListener('DOMContentLoaded', () => {
         dayHeader.className = 'route-day-header';
         dayHeader.style.cssText = 'background: rgba(255, 179, 0, 0.08); padding: 4px 6px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-dark);';
 
-        const allDayVisible = dayRoutes.every(r => nativeParser.visibleRoutes.has(r.id));
+        const isSinFecha = dateSlug === 'Sin Fecha';
+        const dayLabel = isSinFecha ? '📁 Sin Fecha Detectada' : `📅 ${dateSlug}`;
+        const countLabel = `${dayRoutes.length} ${dayRoutes.length === 1 ? 'ruta' : 'rutas'}`;
         dayHeader.innerHTML = `
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:0.68rem; font-weight:700; color:var(--accent-amber);">
-            <input type="checkbox" class="route-day-box" ${allDayVisible ? 'checked' : ''} title="Marcar/desmarcar todas las rutas del día ${dateSlug}">
-            <span>📅 ${dateSlug} (${dayRoutes.length} ${dayRoutes.length === 1 ? 'ruta' : 'rutas'})</span>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:0.68rem; font-weight:700; color:${isSinFecha ? 'var(--text-muted)' : 'var(--accent-amber)'};">
+            <input type="checkbox" class="route-day-box" ${allDayVisible ? 'checked' : ''} title="Marcar/desmarcar todas las rutas de ${dayLabel}">
+            <span>${dayLabel} (${countLabel})</span>
           </label>
           <div style="display:flex; align-items:center; gap:4px;">
-            <button type="button" class="btn-inline-icon btn-unir-dia" title="Unir y descargar las rutas de este día (${dateSlug}) en un solo archivo GPX" style="color:var(--accent-cyan); font-size:0.62rem; font-weight:700; padding:1px 5px; border:1px solid var(--border-dark); border-radius:3px; background:rgba(0,0,0,0.3); cursor:pointer;">🔗 Unir Día</button>
-            <button type="button" class="btn-inline-icon btn-toggle-day-vis" title="Mostrar/Ocultar rutas de este día en el mapa" style="font-size:0.65rem; cursor:pointer;">${allDayVisible ? '👁️' : '🙈'}</button>
+            <button type="button" class="btn-inline-icon btn-unir-dia" title="Unir y descargar las rutas de este grupo en un solo archivo GPX" style="color:var(--accent-cyan); font-size:0.62rem; font-weight:700; padding:1px 5px; border:1px solid var(--border-dark); border-radius:3px; background:rgba(0,0,0,0.3); cursor:pointer;">🔗 Unir Día</button>
+            <button type="button" class="btn-inline-icon btn-toggle-day-vis" title="Mostrar/Ocultar rutas de este grupo en el mapa" style="font-size:0.65rem; cursor:pointer;">${allDayVisible ? '👁️' : '🙈'}</button>
           </div>
         `;
         dayGroup.appendChild(dayHeader);
