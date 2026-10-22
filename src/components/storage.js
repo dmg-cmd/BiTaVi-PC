@@ -270,6 +270,7 @@ export class BiTaViStorage {
             photo.lat = lat;
             photo.lng = lng;
             photo.hasGps = true;
+            photo.geotagSource = 'manual';
             store.put(session);
           }
           resolve(true);

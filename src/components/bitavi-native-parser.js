@@ -298,6 +298,16 @@ export class BiTaViNativeParser {
     let added = false;
     this.lastJsonInspection = { keys: Object.keys(data || {}), routesFound: 0, pointsFound: 0 };
 
+    // Caso 0: backup nativo de BiTaVi Android exportado a JSON
+    // { route: { name, startTime, endTime, distanceMeters, ... },
+    //   locationPoints: [ { latitude, longitude, altitude, speed, timestamp } ],
+    //   waypoints: [ ... ] }
+    // Debe evaluarse antes que el escáner heurístico para no perder nombre, fecha ni distancia.
+    if (this.parseBitaviBackupJson(data, fallbackName)) {
+      this.renderMarkersAndFavorites();
+      return true;
+    }
+
     // Helper para buscar propiedad tolerante a mayúsculas/minúsculas y subcontenedores comunes
     const findContainer = (obj, candidateKeys) => {
       if (!obj || typeof obj !== 'object') return null;
@@ -419,7 +429,7 @@ export class BiTaViNativeParser {
 
     // Caso C: Objeto contenedor con listas de rutas, puntos, marcadores y favoritos
     const routeKeys = ['routes', 'rutas', 'tracks', 'recorridos', 'trips', 'viajes', 'segments', 'legs', 'paths', 'activities', 'history', 't_rutas', 'tbl_rutas', 'tours'];
-    const pointKeys = ['points', 'puntos', 'coordinates', 'coordenadas', 'locations', 'positions', 'trackpoints', 'nodes', 't_puntos'];
+    const pointKeys = ['points', 'puntos', 'coordinates', 'coordenadas', 'locations', 'positions', 'trackpoints', 'nodes', 't_puntos', 'locationpoints', 'location_points', 'puntosruta', 'puntos_ruta', 'track_points', 'geopoints'];
     const markerKeys = ['markers', 'marcadores', 'waypoints', 'pois', 'puntos_interes', 't_marcadores'];
     const favoriteKeys = ['favorites', 'favoritos', 'paradas', 'stops', 'photos', 'fotos', 'imagenes', 't_favoritos'];
 
@@ -619,6 +629,94 @@ export class BiTaViNativeParser {
   }
 
   /**
+   * Interpreta el backup nativo de BiTaVi Android exportado a JSON:
+   * { route: {...}, locationPoints: [{ latitude, longitude, altitude, speed, timestamp }], waypoints: [...] }
+   *
+   * Es el formato que genera la app Android al compartir una expedición como JSON.
+   * Se resuelve de forma explícita (no heurística) para conservar nombre, fecha,
+   * distancia oficial y waypoints del recorrido.
+   *
+   * @param {object} data
+   * @param {string} fallbackName
+   * @returns {boolean} true si se agregó al menos una ruta
+   */
+  parseBitaviBackupJson(data, fallbackName = 'Ruta JSON') {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+
+    // La colección de puntos cambia de nombre según la versión de la app Android.
+    // 'puntos' solo se acepta si existe data.route, para no capturar otros formatos
+    // genéricos que también usan la clave "puntos" junto a "rutas".
+    const NATIVE_POINT_KEYS = [
+      'locationPoints', 'location_points', 'puntosRuta', 'puntos_ruta',
+      'trackPoints', 'track_points', 'geopoints'
+    ];
+    const pointsKey = NATIVE_POINT_KEYS.find(k => Array.isArray(data[k]))
+      || ((data.route && typeof data.route === 'object' && Array.isArray(data.puntos)) ? 'puntos' : null);
+    if (!pointsKey) return false;
+
+    const points = this._normalizePointsArray(data[pointsKey]);
+    if (points.length < 2) return false;
+
+    // Metadatos: normalmente en data.route (objeto), con tolerancia a data.ruta
+    const meta = (data.route && typeof data.route === 'object' && !Array.isArray(data.route))
+      ? data.route
+      : (data.ruta && typeof data.ruta === 'object' && !Array.isArray(data.ruta))
+        ? data.ruta
+        : {};
+
+    const name = meta.name || meta.nombre || data.name || data.nombre || fallbackName;
+    const startTime = parseFlexibleTimestamp(meta.startTime ?? meta.startDate ?? data.startTime);
+    const endTime = parseFlexibleTimestamp(meta.endTime ?? data.endTime);
+
+    // La distancia declarada por Android tiene prioridad sobre el cálculo geodésico
+    const declaredDistance = Number(
+      meta.distanceMeters ?? meta.distanceM ?? meta.distanciaMetros ?? data.distanceMeters
+    );
+
+    // Igual que parseRoutes(): la fecha escrita en el nombre es la fecha real del recorrido
+    const nameDate = extractDateFromName(name);
+    const startDate = nameDate || (startTime ? new Date(startTime).toLocaleString() : null);
+
+    this.addRoute({
+      id: meta.id !== undefined && meta.id !== null ? String(meta.id) : undefined,
+      name,
+      startTime,
+      endTime,
+      startDate,
+      distanceM: Number.isFinite(declaredDistance) && declaredDistance > 0 ? declaredDistance : undefined,
+      maxSpeed: meta.maxSpeed !== undefined && meta.maxSpeed !== null ? Number(meta.maxSpeed).toFixed(1) : '0.0',
+      avgSpeed: meta.avgSpeed !== undefined && meta.avgSpeed !== null ? Number(meta.avgSpeed).toFixed(1) : '0.0',
+      durationMin: (startTime && endTime && endTime > startTime)
+        ? Math.round((endTime - startTime) / 60000)
+        : 0,
+      fileName: data.fileName || null
+    }, points, false);
+
+    // Puntos de interés / waypoints del backup → marcadores tácticos
+    if (Array.isArray(data.waypoints)) {
+      data.waypoints.forEach((w, idx) => {
+        if (!w || typeof w !== 'object') return;
+        const lat = parseFloat(w.latitude ?? w.lat ?? w.latitud);
+        const lng = parseFloat(w.longitude ?? w.lng ?? w.lon ?? w.longitud);
+        if (isNaN(lat) || isNaN(lng)) return;
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+        this.markers.push({
+          id: String(w.id ?? `wp-${Date.now()}-${idx}`),
+          name: w.name || w.nombre || 'Waypoint',
+          desc: w.description || w.desc || w.comment || '',
+          lat,
+          lng,
+          color: w.color || '#2196F3'
+        });
+      });
+    }
+
+    this.lastJsonInspection.routesFound++;
+    this.lastJsonInspection.pointsFound += points.length;
+    return true;
+  }
+
+  /**
    * Interpreta objetos GeoJSON (FeatureCollection, Feature, LineString, MultiLineString, Point)
    */
   parseGeoJson(geoJson, fallbackName = 'GeoJSON') {
@@ -713,7 +811,10 @@ export class BiTaViNativeParser {
           // Por defecto asumimos [lat, lng] a menos que sea formato GeoJSON [lon, lat]
           lat = v0; lng = v1;
         }
-        if (p.length > 2) ele = parseFloat(p[2]) || null;
+        if (p.length > 2 && p[2] !== null && p[2] !== undefined && p[2] !== '') {
+          const parsedEle = parseFloat(p[2]);
+          ele = isNaN(parsedEle) ? null : parsedEle;
+        }
       } else if (typeof p === 'object') {
         // Soporte Google Timeline / Takeout con latitudeE7 y longitudeE7
         if (p.latitudeE7 !== undefined && p.longitudeE7 !== undefined) {
@@ -727,10 +828,12 @@ export class BiTaViNativeParser {
         }
 
         const rawEle = p.ele ?? p.alt ?? p.altitude ?? p.elevacion ?? p.Alt ?? p.Altitude ?? p.z ?? p.Z;
-        ele = rawEle !== undefined ? parseFloat(rawEle) : null;
+        const parsedEle = rawEle !== undefined && rawEle !== null && rawEle !== '' ? parseFloat(rawEle) : NaN;
+        ele = isNaN(parsedEle) ? null : parsedEle;
 
         const rawSpeed = p.speed ?? p.velocidad ?? p.Speed;
-        speed = rawSpeed !== undefined ? parseFloat(rawSpeed) : null;
+        const parsedSpeed = rawSpeed !== undefined && rawSpeed !== null && rawSpeed !== '' ? parseFloat(rawSpeed) : NaN;
+        speed = isNaN(parsedSpeed) ? null : parsedSpeed;
 
         timestamp = p.timestamp ?? p.time ?? p.timestampMs ?? p.fecha ?? p.Fecha ?? p.date ?? null;
       }
@@ -956,13 +1059,24 @@ export class BiTaViNativeParser {
    * @returns {L.LatLngBounds|null}
    */
   getVisibleRoutesBounds() {
-    if (!this.routeLayers || this.routeLayers.size === 0) return null;
     const bounds = L.latLngBounds([]);
-    this.routeLayers.forEach((grp, id) => {
-      if (this.visibleRoutes.has(id) && grp.trackGroup) {
-        try { bounds.extend(grp.trackGroup.getBounds()); } catch (e) {}
-      }
-    });
+    if (this.routeLayers && this.routeLayers.size > 0) {
+      this.routeLayers.forEach((grp, id) => {
+        if (this.visibleRoutes.has(id) && grp.trackGroup) {
+          try { bounds.extend(grp.trackGroup.getBounds()); } catch (e) {}
+        }
+      });
+    }
+    // Fallback directo a coordenadas en memoria si las capas aún no fueron inicializadas
+    if (!bounds.isValid() && this.pointsByRoute && this.pointsByRoute.size > 0) {
+      this.pointsByRoute.forEach((pts, id) => {
+        if (this.visibleRoutes.has(id) && Array.isArray(pts)) {
+          pts.forEach(p => {
+            if (p && !isNaN(p.lat) && !isNaN(p.lng)) bounds.extend([p.lat, p.lng]);
+          });
+        }
+      });
+    }
     return bounds.isValid() ? bounds : null;
   }
 

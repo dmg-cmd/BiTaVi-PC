@@ -152,6 +152,78 @@ describe('Soporte Universal de Rutas y Puntos en formato JSON / GeoJSON', () => 
     expect(parser.routes[0].name).toBe('Travesía Nahuel Huapi');
   });
 
+  it('Interpreta el backup nativo de BiTaVi Android { route, locationPoints, waypoints }', () => {
+    const parser = new BiTaViNativeParser(mockMap);
+    const backup = {
+      route: {
+        name: '2026-06-14 09:23 Lancha hasta La Becasina',
+        startTime: 1782404077137,
+        endTime: 1782407677137,
+        distanceMeters: 32267.5550262928,
+        isActive: false,
+        maxSpeed: 27.4,
+        avgSpeed: 12.1
+      },
+      locationPoints: [
+        { latitude: -34.4217448, longitude: -58.5798769, altitude: 24, speed: 0, timestamp: 0 },
+        { latitude: -34.4218584, longitude: -58.5788351, altitude: 12, speed: 8.5, timestamp: 0 },
+        { latitude: -34.4180000, longitude: -58.5650000, altitude: 5, speed: 14.2, timestamp: 0 }
+      ],
+      waypoints: [
+        { name: 'La Becasina', latitude: -34.4180, longitude: -58.5650, description: 'Parada' }
+      ]
+    };
+
+    const success = parser.parseJsonData(JSON.stringify(backup), 'ruta');
+    expect(success).toBe(true);
+    expect(parser.routes.length).toBe(1);
+
+    const route = parser.routes[0];
+    expect(route.name).toBe('2026-06-14 09:23 Lancha hasta La Becasina');
+    // La fecha del nombre manda sobre route.startTime (igual que en rutas.txt)
+    expect(route.startDate).toBe('2026-06-14');
+    // Distancia oficial declarada por Android (32.27 km), no recalculada
+    expect(route.distanceKm).toBe('32.27');
+    expect(route.maxSpeed).toBe('27.4');
+    expect(route.avgSpeed).toBe('12.1');
+
+    const pts = parser.pointsByRoute.get(route.id);
+    expect(pts.length).toBe(3);
+    expect(pts[0].lat).toBeCloseTo(-34.4217448, 6);
+    expect(pts[0].lng).toBeCloseTo(-58.5798769, 6);
+    expect(pts[1].ele).toBe(12);
+    expect(pts[1].speed).toBeCloseTo(8.5, 1);
+
+    expect(parser.markers.length).toBe(1);
+    expect(parser.markers[0].name).toBe('La Becasina');
+    expect(parser.markers[0].lat).toBeCloseTo(-34.418, 5);
+  });
+
+  it('No confunde un JSON genérico { rutas, puntos } con el backup nativo', () => {
+    const parser = new BiTaViNativeParser(mockMap);
+    const generico = {
+      rutas: [
+        {
+          id: 'r1',
+          nombre: 'Ruta Genérica',
+          points: [
+            { lat: -34.10, lng: -58.10 },
+            { lat: -34.11, lng: -58.11 }
+          ]
+        }
+      ],
+      puntos: [
+        { lat: -34.50, lng: -58.50 },
+        { lat: -34.51, lng: -58.51 }
+      ]
+    };
+
+    const success = parser.parseJsonData(generico, 'generico');
+    expect(success).toBe(true);
+    expect(parser.routes.length).toBe(1);
+    expect(parser.routes[0].name).toBe('Ruta Genérica');
+  });
+
   it('Descubre automáticamente coordenadas en árboles JSON heterogéneos', () => {
     const parser = new BiTaViNativeParser(mockMap);
     const randomTree = {

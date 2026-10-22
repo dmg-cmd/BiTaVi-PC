@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.5-alpha`
+- **Versión Actual**: `v1.1.7-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,44 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.7-alpha` (2026-10-22)
+- **Auto-Encuadre Cartográfico Inteligente, Detección de Expediciones Descomprimidas en Carpetas y Botón Táctico Superior de Rutas**:
+  - **Auto-Encuadre Inmediato del Mapa (`fitBounds`)**:
+    - Se resolvió la causa fundamental por la cual las rutas JSON y fotos no se hacían visibles en pantalla tras la carga: el mapa no ejecutaba `fitBounds()`, manteniendo la vista fija en coordenadas iniciales alejadas del trayecto. Ahora, al cargar cualquier paquete JSON, GPX o fotos, se calculan y combinan automáticamente los límites de las rutas visibles y de las fotografías (`nativeParser.getVisibleRoutesBounds()` + `photoHandler.getPhotosBounds()`), encuadrando de inmediato el mapa con zoom táctico óptimo y padding suave.
+  - **Detección Automática de Backups Descomprimidos en Carpetas (`src/components/folder-loader.js`)**:
+    - La conexión de carpetas (`📁 Conectar Carpeta (Drive / PC)`) ahora detecta de forma autónoma si la carpeta seleccionada contiene expediciones directas con `ruta.json` / `rutas.json` o `favoritos.json` junto con fotos, marcándola como `isSingleDirectBackup = true`. Esto carga instantáneamente todo el viaje sin desglosarlo en archivos sueltos.
+    - Si el usuario abre el selector manual de la carpeta y elige `ruta.json`, `favoritos.json` o una foto, `getBackupPayload()` vincula automáticamente todos los archivos hermanos de la expedición (.json, .txt, fotos) evitando cargas aisladas que pierdan coordenadas o trazas.
+  - **Orden de Procesamiento Sincronizado en `handleFiles` (`src/main.js`)**:
+    - En la ingesta de archivos JSON múltiples, `favoritos.json` se procesa prioritariamente antes de `ruta.json`, de modo que el catálogo de paradas y fotos (`photoGeoMap`) esté disponible de inmediato para geolocalizar las fotos de la galería.
+  - **Botón Táctico Superior "🏁 RUTAS" y Reorganización del Panel sin Scroll**:
+    - Se incorporó en el encabezado superior el botón directo `#btn-toggle-routes` (`🏁 RUTAS`), que abre la sección y encuadra las rutas en el mapa con un solo clic.
+    - Se reorganizó el panel lateral (`tactical-sidebar`) colocando **01 RUTAS Y TELEMETRÍA** y **02 FOTOGRAFÍAS GEOLOCALIZADAS** en la parte superior, eliminando la necesidad de scroll vertical prolongado para acceder a las rutas.
+    - Se agregó la acción `menu-action-focus-routes` al menú superior `🗺️ Ver ▾`.
+  - **Clarificación de Geolocalización en Galería de Fotos**:
+    - Las fotos vinculadas por `favoritos.json` se identifican con la etiqueta explícita `(Parada BiTaVi)`, y las fotos asociadas a la ruta como `(Ruta GPS)`, evitando el confuso aviso "Sin GPS directo" cuando la fotografía ya cuenta con posición exacta en el mapa.
+
+### `v1.1.6-alpha` (2026-10-22)
+- **Soporte del Backup Nativo BiTaVi Android en JSON y Recuperación de GPS en Fotos Reencodeadas**:
+  - **Parser Explícito del Backup Nativo (`src/components/bitavi-native-parser.js`)**:
+    - Nueva función `parseBitaviBackupJson()` que reconoce el esquema real exportado por la app Android: `{ route: { name, startTime, endTime, distanceMeters, ... }, locationPoints: [ { latitude, longitude, altitude, speed, timestamp } ], waypoints: [ ... ] }`.
+    - Se evalúa como **Caso 0** en `parseJsonData()` antes del escáner heurístico, conservando el nombre completo del recorrido, la fecha del nombre, la distancia oficial declarada por Android (`distanceMeters`) y los waypoints como marcadores tácticos.
+    - Alias añadidos a las claves de puntos (`locationPoints`, `location_points`, `puntosRuta`, `puntos_ruta`, `trackPoints`, `track_points`, `geopoints`) para el resto de formatos.
+    - Corrección de `_normalizePointsArray()`: altitud `0`, velocidad vacía y valores no numéricos ya no se convierten en `NaN` (se normalizan a `null`).
+    - Protección contra falsos positivos: la clave genérica `puntos` solo se acepta como colección nativa si existe `data.route`, evitando capturar JSON con `{ rutas, puntos }`.
+  - **Ingesta de JSON y GeoJSON desde la interfaz (`src/main.js`)**:
+    - `addNewRoutesFromFiles()` ahora procesa archivos `.json` / `.geojson` sueltos y también los incluidos dentro de un backup `.zip`, dibujando las rutas nuevas con `renderSingleRoute()` y actualizando el selector de rutas.
+    - El análisis de ZIP renderiza las rutas JSON aunque el backup también contenga `rutas.txt` / `puntos.txt`, sin duplicar el renderizado.
+  - **Recuperación de GPS en Fotografías (`src/components/photo-parser.js`)**:
+    - Nuevas funciones `dmsToDecimal()`, `gpsEnRango()`, `leerGpsFoto()` y `leerMetadatosFoto()`.
+    - `leerGpsFoto()` prueba en orden: `latitude`/`longitude` decimales del bloque GPS EXIF, DMS crudo EXIF, GPS embebido en XMP con prefijo `exif:` y, por último, `exifr.gps()`.
+    - `dmsToDecimal()` interpreta arrays EXIF, notación con símbolos (`34°25'18.28" S`) y textos XMP con coma como separador (`34,25.30468S`), aplicando correctamente las referencias `S`/`W`.
+    - Las fotografías con MIME vacío (arrastres nativos de Tauri o extracción de ZIP) ahora se reconocen por extensión mediante `esArchivoImagen()`.
+    - Los `catch` vacíos se sustituyen por advertencias de diagnóstico en consola, sin bloquear la carga.
+    - El origen del geotag (`geotagSource`) se persiste en `photosMeta` y las tarjetas muestran `EXIF`, `EXIF XMP`, `Parada`, `Ruta` o `Manual` según corresponda.
+  - **Documentación y Pruebas**:
+    - `docs/06_formato_nativo_bitavi_android.md` documenta el esquema JSON nativo y su prioridad de lectura.
+    - Nuevas pruebas en `tests/json-parser.test.js` (backup nativo real y protección de `{ rutas, puntos }`) y `tests/photo-gps.test.js` (DMS, XMP, fallback `exifr.gps`, geotag por favoritos y persistencia de `geotagSource`).
 
 ### `v1.1.5-alpha` (2026-10-22)
 - **Motor Universal de Rutas JSON Resiliente a Fallos, Diagnóstico Táctico y Re-Geolocalización Reactiva de Fotos**:

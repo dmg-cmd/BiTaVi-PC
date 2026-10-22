@@ -54,3 +54,48 @@ nombre | direccion | latitud | longitud | descripcion | tipo | ... | color_hex |
 1. **Selector de Rutas**: Permite conmutar entre ver **Todas las rutas simultáneamente** o enfocar una ruta individual (ej. Ruta 57, 56, 55, 53, 52).
 2. **Pines Tácticos**: Los marcadores y favoritos se pintan con sus nombres y colores originales.
 3. **Pines Fotográficos**: Las imágenes de la carpeta `images/` se procesan con sus metadatos EXIF para situar los pines de cámara en el mapa.
+
+## 4. Backup JSON Nativo (`ruta.json`)
+
+Además del backup en texto, BiTaVi Android puede exportar una expedición como un único archivo JSON. BiTaVi PC lo reconoce de forma explícita como **Caso 0** de `parseJsonData()`, antes de cualquier heurística.
+
+### Esquema
+
+```json
+{
+  "route": {
+    "name": "2026-06-14 09:23 Lancha hasta La Becasina",
+    "startTime": 1782404077137,
+    "endTime": 1782404077203,
+    "distanceMeters": 32267.5550262928,
+    "isActive": false,
+    "maxSpeed": 0,
+    "avgSpeed": 0
+  },
+  "locationPoints": [
+    { "latitude": -34.4217448, "longitude": -58.5798769, "altitude": 24, "speed": 0, "timestamp": 0 }
+  ],
+  "waypoints": []
+}
+```
+
+### Reglas de interpretación
+
+1. **Colección de puntos**: se acepta `locationPoints` (formato actual) y los alias `location_points`, `puntosRuta`, `puntos_ruta`, `trackPoints`, `track_points` y `geopoints`. La clave genérica `puntos` solo se considera parte de este esquema si existe `data.route`.
+2. **Nombre y fecha**: se usa `route.name`; si el nombre contiene una fecha (`YYYY-MM-DD`), esa fecha manda sobre `route.startTime`, igual que en `rutas.txt`.
+3. **Distancia**: se prioriza `route.distanceMeters` (distancia oficial registrada por Android) en lugar de recalcularla con Haversine.
+4. **Velocidades**: `route.maxSpeed` y `route.avgSpeed` se muestran tal como los declara el backup.
+5. **Waypoints**: cada elemento de `waypoints` se dibuja como marcador táctico con `name`, `description` y `color`.
+6. **Timestamps en cero**: si `locationPoints[].timestamp` es `0`, el punto se conserva pero sin hora; no se usa para geolocalizar fotos por proximidad temporal.
+
+### Ingesta
+
+- **Archivo suelto**: arrastrar o seleccionar un `.json` / `.geojson` agrega la ruta y la dibuja con `renderSingleRoute()`.
+- **Dentro de un ZIP**: el análisis del backup también interpreta los `.json` / `.geojson` incluidos, aunque el ZIP contenga además `rutas.txt` o `puntos.txt`.
+- **Restauración de sesión**: la ruta se persiste con el resto de la sesión y reaparece tras recargar la aplicación.
+
+### Fotografías del backup
+
+- Las fotos con bloque GPS EXIF se geolocalizan con `latitude`/`longitude` decimales; si no existen, `leerGpsFoto()` convierte DMS EXIF o el GPS embebido en XMP.
+- Si la foto fue reencodeada y perdió el EXIF (WhatsApp, Google Fotos, capturas), se intenta el GPS asociado a la parada en `favoritos.json` / `favoritos.txt` y, por último, la proximidad temporal con los puntos de la ruta.
+- Los puntos con `timestamp: 0` no permiten el fallback temporal: en ese caso la foto queda como «Sin GPS» y puede fijarse manualmente arrastrándola al mapa.

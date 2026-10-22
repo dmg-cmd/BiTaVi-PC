@@ -264,6 +264,8 @@ export class FolderBackupLoader {
 
     let hasRutasTxt = false;
     let hasPuntosTxt = false;
+    let hasRutaJson = false;
+    let hasFavsJson = false;
 
     // Escaneo recursivo profundo (hasta 4 niveles de subcarpetas)
     const scanRecursively = async (handle, pathPrefix = '', depth = 0) => {
@@ -331,6 +333,8 @@ export class FolderBackupLoader {
             const lower = entry.name.toLowerCase();
             if (lower === 'rutas.txt') hasRutasTxt = true;
             if (lower === 'puntos.txt') hasPuntosTxt = true;
+            if (lower === 'ruta.json' || lower === 'rutas.json' || lower === 'recorrido.json') hasRutaJson = true;
+            if (lower === 'favoritos.json' || lower === 'paradas.json') hasFavsJson = true;
 
             backups.push({
               id: `file-${relPath}`,
@@ -385,7 +389,7 @@ export class FolderBackupLoader {
     this.cachedBackups = backups;
     this.fallbackFiles = allFiles;
 
-    const isSingleDirectBackup = hasRutasTxt && hasPuntosTxt;
+    const isSingleDirectBackup = (hasRutasTxt && hasPuntosTxt) || hasRutaJson || (hasFavsJson && allFiles.some(f => /\.(jpg|jpeg|png|webp|heic)$/i.test(f.name)));
 
     return {
       folderName,
@@ -426,6 +430,8 @@ export class FolderBackupLoader {
         const backups = [];
         let hasRutasTxt = false;
         let hasPuntosTxt = false;
+        let hasRutaJson = false;
+        let hasFavsJson = false;
 
         for (const file of files) {
           if (this._isJunkEntry(file.name)) {
@@ -460,6 +466,8 @@ export class FolderBackupLoader {
           const lower = fileName.toLowerCase();
           if (lower === 'rutas.txt') hasRutasTxt = true;
           if (lower === 'puntos.txt') hasPuntosTxt = true;
+          if (lower === 'ruta.json' || lower === 'rutas.json' || lower === 'recorrido.json') hasRutaJson = true;
+          if (lower === 'favoritos.json' || lower === 'paradas.json') hasFavsJson = true;
 
           backups.push({
             id: `file-${relPath}`,
@@ -486,7 +494,7 @@ export class FolderBackupLoader {
         });
 
         this.cachedBackups = backups;
-        const isSingleDirectBackup = hasRutasTxt && hasPuntosTxt;
+        const isSingleDirectBackup = (hasRutasTxt && hasPuntosTxt) || hasRutaJson || (hasFavsJson && allFiles.some(f => /\.(jpg|jpeg|png|webp|heic)$/i.test(f.name)));
 
         resolve({
           folderName,
@@ -513,17 +521,31 @@ export class FolderBackupLoader {
    */
   async getBackupPayload(backupItem) {
     if (!backupItem) return [];
-    if (backupItem.type === 'zip' || backupItem.type === 'gpx' || backupItem.type === 'geo' || backupItem.type === 'photo') {
+
+    // Helper para determinar si un archivo forma parte de una expedición nativa de BiTaVi (Android o JSON)
+    const isTripRelated = (item) => {
+      const lower = (item.name || '').toLowerCase();
+      return (
+        lower === 'ruta.json' || lower === 'favoritos.json' ||
+        lower === 'rutas.json' || lower === 'paradas.json' ||
+        lower === 'rutas.txt' || lower === 'puntos.txt' ||
+        lower === 'marcadores.txt' || lower === 'favoritos.txt' ||
+        item.type === 'text' || item.type === 'photo' ||
+        (item.type === 'geo' && lower.endsWith('.json'))
+      );
+    };
+
+    if (backupItem.type === 'zip' || backupItem.type === 'gpx') {
       const file = typeof backupItem.getFile === 'function' ? await backupItem.getFile() : backupItem.file;
       return file ? [file] : [];
-    } else if (backupItem.type === 'text') {
-      // Si el usuario selecciona rutas.txt o puntos.txt en el modal de carpeta,
-      // reunir todos los archivos de telemetría (.txt) e imágenes hermanos de la misma subcarpeta
+    } else if (isTripRelated(backupItem)) {
+      // Si el usuario selecciona cualquier archivo de la expedición (ruta.json, favoritos.json, rutas.txt, foto),
+      // reunir de forma sinérgica todos los archivos hermanos de la misma carpeta
       const dirPrefix = backupItem.relPath && backupItem.relPath.includes('/')
         ? backupItem.relPath.slice(0, backupItem.relPath.lastIndexOf('/') + 1)
         : '';
       const relatedItems = (this.cachedBackups || []).filter(item => {
-        if (item.type !== 'text' && item.type !== 'photo') return false;
+        if (!isTripRelated(item)) return false;
         const itemDir = item.relPath && item.relPath.includes('/')
           ? item.relPath.slice(0, item.relPath.lastIndexOf('/') + 1)
           : '';

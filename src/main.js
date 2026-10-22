@@ -127,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnFitRoute = document.getElementById('btn-fit-route');
   const btnClearRoute = document.getElementById('btn-clear-route');
   const btnShareCard = document.getElementById('btn-share-card');
+  const btnToggleRoutes = document.getElementById('btn-toggle-routes');
   const btnTogglePhotos = document.getElementById('btn-toggle-photos');
   // Photo & Lightbox Elements
   const photosContainer = document.getElementById('photos-container');
@@ -1000,6 +1001,19 @@ document.addEventListener('DOMContentLoaded', () => {
             });
           }
 
+          // Rutas y geodatos en formato JSON / GeoJSON dentro del backup ZIP
+          const zipJsonEntries = (extracted.textFiles || []).filter(tf => /\.(json|geojson)$/i.test(tf.name));
+          for (const tf of zipJsonEntries) {
+            const beforeIds = new Set(nativeParser.pointsByRoute.keys());
+            const jsonFallback = tf.name.split('/').pop().replace(/\.[^/.]+$/, '');
+            if (nativeParser.parseJsonData(tf.content, jsonFallback)) {
+              for (const id of nativeParser.pointsByRoute.keys()) {
+                if (!beforeIds.has(id)) nativeParser.renderSingleRoute(id);
+              }
+              addedCount++;
+            }
+          }
+
           const gpxEntries = extracted.gpxFiles && extracted.gpxFiles.length > 0
             ? extracted.gpxFiles
             : (extracted.gpxText ? [{ name: extracted.gpxFileName || f.name, content: extracted.gpxText }] : []);
@@ -1013,6 +1027,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 addedCount++;
               }
             }
+          }
+        } else if (lowerName.endsWith('.json') || lowerName.endsWith('.geojson')) {
+          // Rutas y geodatos JSON (incluye el backup nativo { route, locationPoints, waypoints })
+          const text = await f.text();
+          const beforeIds = new Set(nativeParser.pointsByRoute.keys());
+          const jsonFallback = f.name.replace(/\.[^/.]+$/, '');
+          if (nativeParser.parseJsonData(text, jsonFallback)) {
+            for (const id of nativeParser.pointsByRoute.keys()) {
+              if (!beforeIds.has(id)) nativeParser.renderSingleRoute(id);
+            }
+            addedCount++;
           }
         } else if (lowerName.endsWith('.txt')) {
           pendingTextFiles.push(f);
@@ -2122,6 +2147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
          // Detección de archivos de rutas y geodatos en formato JSON / GeoJSON dentro del ZIP
           let zipJsonFound = false;
+          const beforeZipJsonIds = new Set(nativeParser.pointsByRoute.keys());
           for (const tf of extracted.textFiles) {
             const lowerTf = tf.name.toLowerCase();
             if (lowerTf.endsWith('.json') || lowerTf.endsWith('.geojson')) {
@@ -2134,8 +2160,15 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             }
           }
-          if (zipJsonFound && !hasNativeFiles) {
-            currentRouteBounds = nativeParser.renderRoute('all');
+          if (zipJsonFound) {
+            if (!hasNativeFiles) {
+              currentRouteBounds = nativeParser.renderRoute('all');
+            } else {
+              // Con rutas nativas ya renderizadas solo se dibujan las nuevas del JSON
+              for (const id of nativeParser.pointsByRoute.keys()) {
+                if (!beforeZipJsonIds.has(id)) nativeParser.renderSingleRoute(id);
+              }
+            }
             populateRouteSelector(nativeParser.routes);
             showRouteDate(nativeParser.routes);
             updateAllRouteStats();
@@ -2262,6 +2295,15 @@ document.addEventListener('DOMContentLoaded', () => {
       let jsonAddedCount = 0;
       let lastFileInspection = null;
 
+      // Priorizar favoritos.json antes de ruta.json para que los favoritos y photoGeoMap estén disponibles
+      jsonFiles.sort((a, b) => {
+        const aFav = /favorito|parada/i.test(a.name);
+        const bFav = /favorito|parada/i.test(b.name);
+        if (aFav && !bFav) return -1;
+        if (!aFav && bFav) return 1;
+        return 0;
+      });
+
       for (const jf of jsonFiles) {
         try {
           const jsonText = await jf.text();
@@ -2319,9 +2361,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await photoHandler.processPhotoFiles(imageFiles, allRoutePoints, photoGeoMap);
       updatePhotosGallery(result.allPhotos);
       statPhotosCount.textContent = result.allPhotos.length;
-      if (typeof setActiveSidebarTab === 'function') {
-        setActiveSidebarTab('photos');
-      }
+    }
+
+    // Auto-encuadre inteligente: asegurar que las rutas y fotos cargadas se enfoquen en pantalla
+    const focusBounds = L.latLngBounds([]);
+    const rBounds = nativeParser.getVisibleRoutesBounds();
+    if (rBounds && rBounds.isValid()) {
+      focusBounds.extend(rBounds);
+    }
+    const pBounds = typeof photoHandler.getPhotosBounds === 'function' ? photoHandler.getPhotosBounds() : null;
+    if (pBounds && pBounds.isValid()) {
+      focusBounds.extend(pBounds);
+    }
+    if (focusBounds.isValid()) {
+      mapInstance.fitBounds(focusBounds, { padding: [50, 50], maxZoom: 16 });
     }
 
     // Si se cargaron rutas o waypoints, activar automáticamente la pestaña de Rutas en la parte superior
@@ -2329,6 +2382,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (typeof setActiveSidebarTab === 'function') {
         setActiveSidebarTab('routes');
       }
+      cursorCoords.textContent = `✅ Expedición visualizada: ${nativeParser.routes.length} ruta(s) enfocada(s) en el mapa.`;
+    } else if (photoHandler.photos && photoHandler.photos.length > 0) {
+      if (typeof setActiveSidebarTab === 'function') {
+        setActiveSidebarTab('photos');
+      }
+      cursorCoords.textContent = `📷 ${photoHandler.photos.length} fotografía(s) geolocalizada(s) en el mapa.`;
     }
 
     // Refrescar el catálogo del buscador táctico local con todas las entidades cargadas
@@ -2409,13 +2468,16 @@ document.addEventListener('DOMContentLoaded', () => {
       let coordsText = '📍 Sin GPS directo';
       if (photo.lat !== null && photo.lng !== null && !isNaN(photo.lat) && !isNaN(photo.lng)) {
         let tag = '';
-        if (photo.geotagSource === 'exif') tag = ' (EXIF)';
-        else if (photo.geotagSource === 'favoritos') tag = ' (Parada)';
-        else if (photo.geotagSource === 'timestamp') tag = ' (Ruta)';
-        else if (photo.geotagSource === 'manual') tag = ' (Manual)';
+        const src = photo.geotagSource;
+        if (src === 'exif' || src === 'exif-dms' || src === 'exif-gps') tag = ' (GPS EXIF)';
+        else if (src === 'xmp') tag = ' (GPS XMP)';
+        else if (src === 'favoritos') tag = ' (Parada BiTaVi)';
+        else if (src === 'timestamp') tag = ' (Ruta GPS)';
+        else if (src === 'manual') tag = ' (Manual)';
+        else tag = ' (Geolocalizada)';
         coordsText = `${photo.lat.toFixed(5)}°, ${photo.lng.toFixed(5)}°${tag}`;
       } else {
-        coordsText = '📍 Sin GPS (Arrastra al mapa)';
+        coordsText = '📍 Sin coordenadas GPS (Arrastra al mapa)';
       }
 
       card.innerHTML = `
@@ -2550,6 +2612,7 @@ document.addEventListener('DOMContentLoaded', () => {
           name: p.name,
           size: p.size,
           hasGps: p.hasGps,
+          geotagSource: p.geotagSource || null,
           lat: p.lat,
           lng: p.lng,
           alt: p.alt,
@@ -2744,6 +2807,26 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.error('[KMZ Photos Error]', err);
         alert(`Error al generar KMZ de fotos: ${err.message}`);
+      }
+    });
+  }
+
+  if (btnToggleRoutes) {
+    btnToggleRoutes.addEventListener('click', () => {
+      if (sidebar && sidebar.classList.contains('collapsed')) {
+        sidebar.classList.remove('collapsed');
+        sidebarVisible = true;
+      }
+      setActiveSidebarTab('routes');
+      const rBounds = nativeParser.getVisibleRoutesBounds();
+      if (rBounds && rBounds.isValid()) {
+        mapInstance.fitBounds(rBounds, { padding: [50, 50], maxZoom: 16 });
+        cursorCoords.textContent = '🏁 Visualizando rutas en el mapa.';
+      } else if (currentRouteBounds && currentRouteBounds.isValid()) {
+        mapInstance.fitBounds(currentRouteBounds, { padding: [50, 50], maxZoom: 16 });
+        cursorCoords.textContent = '🏁 Visualizando rutas en el mapa.';
+      } else {
+        cursorCoords.textContent = 'ℹ️ No hay rutas cargadas. Puedes cargar un .ZIP, .GPX o .JSON desde el panel.';
       }
     });
   }
@@ -3019,6 +3102,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   bindMenuAction('menu-action-tab-all', () => {
     setActiveSidebarTab('all');
+  });
+  bindMenuAction('menu-action-focus-routes', () => {
+    btnFitRoute?.click();
   });
   bindMenuAction('menu-action-toggle-panel', () => {
     btnToggleSidebar?.click();

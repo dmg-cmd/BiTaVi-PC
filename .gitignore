@@ -49,3 +49,7 @@ backup*
 sample-data/*
 !sample-data/backup_ejemplo_bitavi.zip
 !sample-data/recorrido_tactico_ejemplo.gpx
+
+# Exclusión de backups personales extraídos localmente
+Zip/
+zip/

@@ -1,6 +1,201 @@
 import L from 'leaflet';
 import exifr from 'exifr';
 
+const IMAGE_EXT_RE = /\.(jpe?g|png|webp|heic|heif|avif|tiff?)$/i;
+
+/**
+ * Comprueba si un File/Blob es una imagen, tolerando tipos MIME vacíos
+ * (frecuente en arrastres nativos de Tauri o en archivos descomprimidos).
+ * @param {File} file
+ * @returns {boolean}
+ */
+export function esArchivoImagen(file) {
+  if (!file) return false;
+  if (file.type && file.type.startsWith('image/')) return true;
+  return IMAGE_EXT_RE.test(file.name || '');
+}
+
+/**
+ * Convierte coordenadas DMS a grados decimales.
+ * Acepta arrays EXIF [grados, minutos, segundos] y textos XMP tipo "34,12.6168S".
+ * @param {Array<number>|string|number} value
+ * @param {string} [ref] - "N"/"S"/"E"/"W"
+ * @returns {number} grados decimales o NaN
+ */
+export function dmsToDecimal(value, ref) {
+  if (value === null || value === undefined) return NaN;
+
+  if (Array.isArray(value) && value.length > 0) {
+    const deg = Number(value[0]) || 0;
+    const min = Number(value[1]) || 0;
+    const sec = Number(value[2]) || 0;
+    let dec = deg + min / 60 + sec / 3600;
+    if (/^[SW]/i.test(ref || '')) dec = -Math.abs(dec);
+    return dec;
+  }
+
+  if (typeof value === 'string') {
+    // Referencia cardinal embebida en el texto XMP (p. ej. "34,12.6168S")
+    const refFromValue = (value.match(/[NSEW]/i) || [''])[0].toUpperCase();
+    const refFinal = refFromValue || (ref || '').toUpperCase();
+
+    // Quitar cardinales y símbolos de grados/minutos/segundos
+    let clean = value
+      .replace(/[NSEW]/gi, ' ')
+      .replace(/[°º]/g, ' ')
+      .replace(/['′]/g, ' ')
+      .replace(/["″]/g, ' ')
+      .trim();
+    if (!clean) return NaN;
+
+    // "34,12.6168" usa la coma como separador grados/minutos y el punto como decimal
+    if (clean.includes(',') && clean.includes('.')) {
+      clean = clean.replace(',', ' ');
+    } else {
+      // "34,2102" (coma decimal europea) → "34.2102"
+      clean = clean.replace(/,/g, '.');
+    }
+
+    const nums = clean.match(/-?\d+(?:\.\d+)?/g);
+    if (!nums || nums.length === 0) return NaN;
+    const n = nums.map(Number);
+    let dec = n.length >= 3
+      ? n[0] + n[1] / 60 + n[2] / 3600
+      : n.length === 2
+        ? n[0] + n[1] / 60
+        : n[0];
+    if (/^[SW]$/.test(refFinal)) dec = -Math.abs(dec);
+    return dec;
+  }
+
+  const num = Number(value);
+  return Number.isFinite(num) ? num : NaN;
+}
+
+/**
+ * Valida que un par de coordenadas sea geográficamente utilizable.
+ */
+export function gpsEnRango(lat, lng) {
+  return typeof lat === 'number' && typeof lng === 'number' &&
+    isFinite(lat) && isFinite(lng) &&
+    lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 &&
+    !(lat === 0 && lng === 0);
+}
+
+/**
+ * Lee las coordenadas GPS de una foto probando, en orden:
+ * bloque GPS EXIF, DMS crudo (EXIF/XMP), XMP con prefijo y, por último, exifr.gps().
+ * Deja diagnóstico en consola cuando no hay GPS legible.
+ * @param {File|Blob} file
+ * @returns {Promise<{lat:number, lng:number, alt:number|null, source:string}|null>}
+ */
+export async function leerGpsFoto(file) {
+  let raw = null;
+
+  try {
+    raw = await exifr.parse(file, {
+      tiff: true,
+      ifd0: true,
+      exif: true,
+      gps: true,
+      interop: true,
+      xmp: true,
+      reviveValues: true,
+      sanitize: true,
+      mergeOutput: true
+    });
+  } catch (err) {
+    console.warn('[EXIF] parse() no pudo leer:', file && file.name, err && err.message);
+  }
+
+  if (raw) {
+    // 1) exifr ya entrega latitude/longitude decimales cuando hay bloque GPS
+    const lat1 = Number(raw.latitude);
+    const lng1 = Number(raw.longitude);
+    if (gpsEnRango(lat1, lng1)) {
+      const alt1 = Number(raw.GPSAltitude);
+      return { lat: lat1, lng: lng1, alt: isFinite(alt1) ? alt1 : null, source: 'exif' };
+    }
+
+    // 2) DMS crudo del bloque GPS EXIF
+    const lat2 = dmsToDecimal(raw.GPSLatitude, raw.GPSLatitudeRef);
+    const lng2 = dmsToDecimal(raw.GPSLongitude, raw.GPSLongitudeRef);
+    if (gpsEnRango(lat2, lng2)) {
+      const alt2 = Number(raw.GPSAltitude);
+      return { lat: lat2, lng: lng2, alt: isFinite(alt2) ? alt2 : null, source: 'exif-dms' };
+    }
+
+    // 3) XMP con prefijo (fotos reencodeadas por Google Fotos / Android)
+    const lat3 = dmsToDecimal(raw['exif:GPSLatitude'], raw['exif:GPSLatitudeRef']);
+    const lng3 = dmsToDecimal(raw['exif:GPSLongitude'], raw['exif:GPSLongitudeRef']);
+    if (gpsEnRango(lat3, lng3)) {
+      return { lat: lat3, lng: lng3, alt: null, source: 'xmp' };
+    }
+  }
+
+  // 4) Último recurso: API dedicada de exifr
+  try {
+    const gps = await exifr.gps(file);
+    const lat4 = Number(gps && gps.latitude);
+    const lng4 = Number(gps && gps.longitude);
+    if (gpsEnRango(lat4, lng4)) {
+      return { lat: lat4, lng: lng4, alt: null, source: 'exif-gps' };
+    }
+  } catch (err) {
+    console.warn('[EXIF] gps() no pudo leer:', file && file.name, err && err.message);
+  }
+
+  console.info('[EXIF] Sin GPS legible:', {
+    name: file && file.name,
+    size: file && file.size,
+    type: file && file.type,
+    claves: raw ? Object.keys(raw).slice(0, 25) : null
+  });
+
+  return null;
+}
+
+/**
+ * Lee metadatos EXIF complementarios: fecha de captura, cámara y altitud.
+ * @param {File|Blob} file
+ * @returns {Promise<{dateStr:string, ts:number|null, camera:string, alt:number|null}>}
+ */
+export async function leerMetadatosFoto(file) {
+  const result = { dateStr: 'Fecha no disponible', ts: null, camera: 'Desconocida', alt: null };
+
+  try {
+    const exifData = await exifr.parse(file, {
+      tiff: true,
+      ifd0: true,
+      exif: true,
+      gps: true,
+      pick: ['DateTimeOriginal', 'CreateDate', 'Make', 'Model', 'GPSAltitude']
+    });
+
+    if (!exifData) return result;
+
+    const rawAlt = Number(exifData.GPSAltitude);
+    if (isFinite(rawAlt)) result.alt = rawAlt;
+
+    const rawDate = exifData.DateTimeOriginal || exifData.CreateDate;
+    if (rawDate) {
+      const dt = new Date(rawDate);
+      if (!isNaN(dt.getTime())) {
+        result.dateStr = dt.toLocaleString();
+        result.ts = dt.getTime();
+      }
+    }
+
+    if (exifData.Make || exifData.Model) {
+      result.camera = `${exifData.Make || ''} ${exifData.Model || ''}`.trim();
+    }
+  } catch (err) {
+    console.warn('[EXIF] Metadatos complementarios no disponibles:', file && file.name, err && err.message);
+  }
+
+  return result;
+}
+
 export class PhotoHandler {
   constructor(mapInstance, onPhotoSelect) {
     this.mapInstance = mapInstance;
@@ -14,7 +209,7 @@ export class PhotoHandler {
     const newPhotos = [];
 
     for (const file of fileList) {
-      if (!file.type.startsWith('image/') && !/\.(jpg|jpeg|png|webp|heic)$/i.test(file.name)) continue;
+      if (!esArchivoImagen(file)) continue;
 
       try {
         let lat = null;
@@ -26,84 +221,22 @@ export class PhotoHandler {
         let ts = null;
         let geotagSource = null;
 
-        // 1. Intentar extraer coordenadas GPS directas de los metadatos EXIF
-        try {
-          const gps = await exifr.gps(file);
-          if (gps && typeof gps.latitude === 'number' && !isNaN(gps.latitude) &&
-              typeof gps.longitude === 'number' && !isNaN(gps.longitude)) {
-            lat = gps.latitude;
-            lng = gps.longitude;
-            hasGps = true;
-            geotagSource = 'exif';
-          }
-        } catch (e) {
-          // EXIF GPS ausente o no legible
-        }
-
-        // 1b. Fallback EXIF directo en caso de que exifr.gps no haya encontrado el bloque TIFF directo
-        if (!hasGps) {
-          try {
-            const rawExif = await exifr.parse(file, {
-              tiff: true,
-              xmp: true,
-              ifd0: true,
-              gps: true
-            });
-            if (rawExif) {
-              if (typeof rawExif.latitude === 'number' && !isNaN(rawExif.latitude) &&
-                  typeof rawExif.longitude === 'number' && !isNaN(rawExif.longitude)) {
-                lat = rawExif.latitude;
-                lng = rawExif.longitude;
-                hasGps = true;
-                geotagSource = 'exif';
-              } else if (rawExif.GPSLatitude && rawExif.GPSLongitude) {
-                let dmsLat = Array.isArray(rawExif.GPSLatitude)
-                  ? rawExif.GPSLatitude[0] + (rawExif.GPSLatitude[1] || 0) / 60 + (rawExif.GPSLatitude[2] || 0) / 3600
-                  : parseFloat(rawExif.GPSLatitude);
-                let dmsLng = Array.isArray(rawExif.GPSLongitude)
-                  ? rawExif.GPSLongitude[0] + (rawExif.GPSLongitude[1] || 0) / 60 + (rawExif.GPSLongitude[2] || 0) / 3600
-                  : parseFloat(rawExif.GPSLongitude);
-
-                if (rawExif.GPSLatitudeRef === 'S') dmsLat = -Math.abs(dmsLat);
-                if (rawExif.GPSLongitudeRef === 'W') dmsLng = -Math.abs(dmsLng);
-
-                if (!isNaN(dmsLat) && !isNaN(dmsLng) && dmsLat >= -90 && dmsLat <= 90 && dmsLng >= -180 && dmsLng <= 180) {
-                  lat = dmsLat;
-                  lng = dmsLng;
-                  hasGps = true;
-                  geotagSource = 'exif';
-                }
-              }
-            }
-          } catch (e) {
-            // EXIF fallback no legible
-          }
+        // 1. EXIF: bloque GPS, DMS, XMP y API dedicada, todo en una sola lectura
+        const gps = await leerGpsFoto(file);
+        if (gps) {
+          lat = gps.lat;
+          lng = gps.lng;
+          if (gps.alt !== null) alt = Math.round(gps.alt);
+          hasGps = true;
+          geotagSource = gps.source;
         }
 
         // Metadatos EXIF complementarios (cámara, altitud, fecha de captura)
-        try {
-          const exifData = await exifr.parse(file, {
-            pick: ['DateTimeOriginal', 'Make', 'Model', 'GPSAltitude']
-          });
-
-          if (exifData) {
-            if (exifData.GPSAltitude && !isNaN(exifData.GPSAltitude)) {
-              alt = Math.round(exifData.GPSAltitude);
-            }
-            if (exifData.DateTimeOriginal) {
-              const dt = new Date(exifData.DateTimeOriginal);
-              if (!isNaN(dt.getTime())) {
-                dateStr = dt.toLocaleString();
-                ts = dt.getTime();
-              }
-            }
-            if (exifData.Make || exifData.Model) {
-              camera = `${exifData.Make || ''} ${exifData.Model || ''}`.trim();
-            }
-          }
-        } catch (e) {
-          // EXIF adicional no disponible
-        }
+        const exifMeta = await leerMetadatosFoto(file);
+        dateStr = exifMeta.dateStr;
+        ts = exifMeta.ts;
+        if (exifMeta.camera !== 'Desconocida') camera = exifMeta.camera;
+        if (alt === null && exifMeta.alt !== null) alt = Math.round(exifMeta.alt);
 
         // 2. Si no hay GPS en EXIF, intentar geolocalización por mapa de favoritos (BiTaVi Android)
         //    Las paradas/favoritos en favoritos.txt guardan la foto asociada y sus coordenadas.
@@ -416,5 +549,16 @@ export class PhotoHandler {
     });
 
     return this.photos;
+  }
+
+  /**
+   * Devuelve los límites (LatLngBounds) de todas las fotos geolocalizadas
+   * @returns {L.LatLngBounds|null}
+   */
+  getPhotosBounds() {
+    const geoPhotos = this.photos.filter(p => p.hasGps && p.lat !== null && p.lng !== null && !isNaN(p.lat) && !isNaN(p.lng));
+    if (geoPhotos.length === 0) return null;
+    const bounds = L.latLngBounds(geoPhotos.map(p => [p.lat, p.lng]));
+    return bounds.isValid() ? bounds : null;
   }
 }
