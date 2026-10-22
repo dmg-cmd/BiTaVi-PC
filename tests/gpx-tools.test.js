@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeFilename, createGpxXml, createCombinedGpxXml, extractRouteDateSlug } from '../src/components/gpx-parser.js';
+import { sanitizeFilename, createGpxXml, createCombinedGpxXml, extractRouteDateSlug, groupRoutesByDay } from '../src/components/gpx-parser.js';
 
 describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
   it('sanitizeFilename limpia caracteres ilegales en Windows y Linux', () => {
@@ -68,5 +68,23 @@ describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
 
     const route4 = { name: 'Ruta_2026-04-12_montana' };
     expect(extractRouteDateSlug(route4)).toBe('2026-04-12');
+  });
+
+  it('groupRoutesByDay agrupa correctamente las rutas por su fecha cronológica', () => {
+    const routes = [
+      { id: '1', name: 'Ruta_2026-06-25_Mañana' },
+      { id: '2', name: 'Ruta_2026-06-25_Tarde' },
+      { id: '3', name: 'Ruta_2026-06-26_Etapa1' }
+    ];
+
+    const grouped = groupRoutesByDay(routes);
+
+    expect(grouped.size).toBe(2);
+    expect(grouped.has('2026-06-25')).toBe(true);
+    expect(grouped.has('2026-06-26')).toBe(true);
+    expect(grouped.get('2026-06-25').length).toBe(2);
+    expect(grouped.get('2026-06-26').length).toBe(1);
+    expect(grouped.get('2026-06-25')[0].id).toBe('1');
+    expect(grouped.get('2026-06-25')[1].id).toBe('2');
   });
 });

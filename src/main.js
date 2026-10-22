@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { BiTaViMap } from './components/map.js';
-import { GpxHandler, sanitizeFilename, downloadBlob, createCombinedGpxXml, extractRouteDateSlug } from './components/gpx-parser.js';
+import { GpxHandler, sanitizeFilename, downloadBlob, createCombinedGpxXml, extractRouteDateSlug, groupRoutesByDay } from './components/gpx-parser.js';
 import { PhotoHandler } from './components/photo-parser.js';
 import { ZipBackupHandler } from './components/zip-loader.js';
 import { GeoSearch } from './components/search.js';
@@ -102,7 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAddRoute = document.getElementById('btn-add-route');
   const btnAddRouteAction = document.getElementById('btn-add-route-action');
   const routeFileAddInput = document.getElementById('route-file-add-input');
+  const chkGroupByDay = document.getElementById('chk-group-by-day');
   const btnSaveCombinedRoute = document.getElementById('btn-save-combined-route');
+  const btnSaveByDay = document.getElementById('btn-save-by-day');
   const btnSaveSelectedZip = document.getElementById('btn-save-selected-zip');
   const btnSaveSelectedKml = document.getElementById('btn-save-selected-kml');
   const btnSaveSelectedKmz = document.getElementById('btn-save-selected-kmz');
@@ -664,7 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    routes.forEach(r => {
+    function createRouteRow(r) {
       const color = colorMap.get(r.id) || '#00f0ff';
       const isVisible = nativeParser.visibleRoutes.has(r.id);
 
@@ -686,8 +688,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <button type="button" class="btn-inline-icon btn-download-gpx" title="Guardar esta ruta individual en .GPX con su nombre">💾</button>
         <button type="button" class="btn-inline-icon btn-danger btn-delete-route" title="Eliminar ruta del mapa">✕</button>
       `;
-
-      routeSelector.appendChild(row);
 
       const exportBox = row.querySelector('.route-export-box');
       const nameText = row.querySelector('.route-name-text');
@@ -808,7 +808,92 @@ document.addEventListener('DOMContentLoaded', () => {
           cursorCoords.textContent = `🗑️ Ruta eliminada.`;
         }
       });
-    });
+
+      return row;
+    }
+
+    // Comprobar si se deben agrupar las rutas por día
+    const shouldGroupByDay = chkGroupByDay ? chkGroupByDay.checked : true;
+
+    if (shouldGroupByDay) {
+      const groupedByDay = groupRoutesByDay(routes, nativeParser.pointsByRoute);
+
+      groupedByDay.forEach((dayRoutes, dateSlug) => {
+        const dayGroup = document.createElement('div');
+        dayGroup.className = 'route-day-group';
+        dayGroup.style.cssText = 'margin-bottom: 6px; border: 1px solid var(--border-dark); border-radius: 4px; overflow: hidden; background: rgba(0,0,0,0.2);';
+
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'route-day-header';
+        dayHeader.style.cssText = 'background: rgba(255, 179, 0, 0.08); padding: 4px 6px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-dark);';
+
+        const allDayVisible = dayRoutes.every(r => nativeParser.visibleRoutes.has(r.id));
+        dayHeader.innerHTML = `
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:0.68rem; font-weight:700; color:var(--accent-amber);">
+            <input type="checkbox" class="route-day-box" ${allDayVisible ? 'checked' : ''} title="Marcar/desmarcar todas las rutas del día ${dateSlug}">
+            <span>📅 ${dateSlug} (${dayRoutes.length} ${dayRoutes.length === 1 ? 'ruta' : 'rutas'})</span>
+          </label>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <button type="button" class="btn-inline-icon btn-unir-dia" title="Unir y descargar las rutas de este día (${dateSlug}) en un solo archivo GPX" style="color:var(--accent-cyan); font-size:0.62rem; font-weight:700; padding:1px 5px; border:1px solid var(--border-dark); border-radius:3px; background:rgba(0,0,0,0.3); cursor:pointer;">🔗 Unir Día</button>
+            <button type="button" class="btn-inline-icon btn-toggle-day-vis" title="Mostrar/Ocultar rutas de este día en el mapa" style="font-size:0.65rem; cursor:pointer;">${allDayVisible ? '👁️' : '🙈'}</button>
+          </div>
+        `;
+        dayGroup.appendChild(dayHeader);
+
+        const dayItems = document.createElement('div');
+        dayItems.className = 'route-day-items';
+        dayRoutes.forEach(r => {
+          dayItems.appendChild(createRouteRow(r));
+        });
+        dayGroup.appendChild(dayItems);
+        routeSelector.appendChild(dayGroup);
+
+        const dayBox = dayHeader.querySelector('.route-day-box');
+        const btnUnirDia = dayHeader.querySelector('.btn-unir-dia');
+        const btnToggleDayVis = dayHeader.querySelector('.btn-toggle-day-vis');
+
+        dayBox.addEventListener('change', (e) => {
+          const isChecked = e.target.checked;
+          dayItems.querySelectorAll('.route-export-box').forEach(cb => { cb.checked = isChecked; });
+          dayRoutes.forEach(r => nativeParser.setRouteVisibility(r.id, isChecked));
+          dayItems.querySelectorAll('.route-item-row').forEach(row => {
+            const visBtn = row.querySelector('.btn-toggle-vis');
+            if (isChecked) {
+              row.classList.remove('route-hidden-row');
+              if (visBtn) visBtn.textContent = '👁️';
+            } else {
+              row.classList.add('route-hidden-row');
+              if (visBtn) visBtn.textContent = '🙈';
+            }
+          });
+          btnToggleDayVis.textContent = isChecked ? '👁️' : '🙈';
+          const allBoxes = Array.from(routeSelector.querySelectorAll('.route-export-box'));
+          allBox.checked = allBoxes.every(b => b.checked);
+        });
+
+        btnUnirDia.addEventListener('click', () => {
+          cursorCoords.textContent = `⏳ Unificando ${dayRoutes.length} rutas del día ${dateSlug}...`;
+          const segments = dayRoutes.map(r => nativeParser.pointsByRoute.get(r.id) || []);
+          const unifiedName = `Ruta ${dateSlug} (${dayRoutes.length} tramos)`;
+          const gpxXml = createCombinedGpxXml(unifiedName, segments, nativeParser.markers);
+          const fileName = `ruta_unificada_${dateSlug}.gpx`;
+          const blob = new Blob([gpxXml], { type: 'application/gpx+xml;charset=utf-8' });
+          downloadBlob(blob, fileName);
+          cursorCoords.textContent = `✅ Día ${dateSlug} guardado como una sola ruta en ${fileName}`;
+        });
+
+        btnToggleDayVis.addEventListener('click', () => {
+          const isVis = btnToggleDayVis.textContent === '👁️';
+          const nextVis = !isVis;
+          dayBox.checked = nextVis;
+          dayBox.dispatchEvent(new Event('change'));
+        });
+      });
+    } else {
+      routes.forEach(r => {
+        routeSelector.appendChild(createRouteRow(r));
+      });
+    }
   }
 
   // Agrega rutas de forma incremental desde archivos GPX, KML o TXT
@@ -950,6 +1035,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     downloadBlob(zipBlob, zipFileName);
     cursorCoords.textContent = `✅ ${selectedRoutes.length} rutas guardadas por separado en ${zipFileName}`;
+  }
+
+  // 3. Guarda las rutas marcadas agrupadas por día en GPX individual o ZIP
+  async function saveRoutesGroupedByDay() {
+    if (!nativeParser.routes || nativeParser.routes.length === 0) {
+      alert('No hay rutas disponibles para guardar.');
+      return;
+    }
+
+    const selectedBoxes = Array.from(routeSelector.querySelectorAll('.route-export-box:checked'));
+    const selectedIds = selectedBoxes.map(b => b.dataset.routeId);
+    const selectedRoutes = nativeParser.routes.filter(r => selectedIds.includes(r.id));
+
+    if (selectedRoutes.length === 0) {
+      alert('Por favor selecciona al menos una ruta marcando su casilla [✓] para guardarla.');
+      return;
+    }
+
+    const groupedByDay = groupRoutesByDay(selectedRoutes, nativeParser.pointsByRoute);
+    const days = Array.from(groupedByDay.keys());
+
+    // Si solo hay 1 día seleccionado: descarga directa del archivo unificado GPX de ese día
+    if (days.length === 1) {
+      const dateSlug = days[0];
+      const dayRoutes = groupedByDay.get(dateSlug);
+      cursorCoords.textContent = `⏳ Unificando ${dayRoutes.length} rutas del día ${dateSlug}...`;
+      const segments = dayRoutes.map(r => nativeParser.pointsByRoute.get(r.id) || []);
+      const unifiedName = `Ruta ${dateSlug} (${dayRoutes.length} tramos)`;
+      const gpxXml = createCombinedGpxXml(unifiedName, segments, nativeParser.markers);
+      const fileName = `ruta_unificada_${dateSlug}.gpx`;
+      const blob = new Blob([gpxXml], { type: 'application/gpx+xml;charset=utf-8' });
+      downloadBlob(blob, fileName);
+      cursorCoords.textContent = `✅ Día ${dateSlug} guardado como una sola ruta en ${fileName}`;
+      return;
+    }
+
+    // Múltiples días seleccionados: empaquetar cada día unificado dentro de un ZIP
+    cursorCoords.textContent = `⏳ Unificando ${selectedRoutes.length} rutas en ${days.length} archivos GPX diarios...`;
+    const zip = new JSZip();
+
+    for (const dateSlug of days) {
+      const dayRoutes = groupedByDay.get(dateSlug);
+      const segments = dayRoutes.map(r => nativeParser.pointsByRoute.get(r.id) || []);
+      const unifiedName = `Ruta ${dateSlug} (${dayRoutes.length} tramos)`;
+      const gpxXml = createCombinedGpxXml(unifiedName, segments, nativeParser.markers);
+      zip.file(`ruta_unificada_${dateSlug}.gpx`, gpxXml);
+    }
+
+    const firstDay = days[0];
+    const lastDay = days[days.length - 1];
+    const zipFileName = `rutas_unificadas_por_dia_${firstDay}_a_${lastDay}.zip`;
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(zipBlob, zipFileName);
+    cursorCoords.textContent = `✅ ${days.length} días unificados (${selectedRoutes.length} rutas) guardados en ${zipFileName}`;
   }
 
   // Recopila datos de rutas elegidas, waypoints y fotos para exportación a Google Earth 3D
@@ -2045,8 +2184,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnSaveCombinedRoute) {
     btnSaveCombinedRoute.addEventListener('click', saveCombinedRoute);
   }
+  if (btnSaveByDay) {
+    btnSaveByDay.addEventListener('click', saveRoutesGroupedByDay);
+  }
   if (btnSaveSelectedZip) {
     btnSaveSelectedZip.addEventListener('click', saveSelectedRoutesZip);
+  }
+  if (chkGroupByDay) {
+    chkGroupByDay.addEventListener('change', () => {
+      populateRouteSelector(nativeParser.routes);
+    });
   }
   if (btnSaveSelectedKml) {
     btnSaveSelectedKml.addEventListener('click', saveSelectedKml);

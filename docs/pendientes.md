@@ -1,7 +1,7 @@
 # 📋 BiTaVi PC - Hoja de Ruta y Tareas Pendientes
 
 > **Documento Oficial de Seguimiento y Próximas Fases**  
-> **Versión Actual del Sistema**: `v1.0.7-alpha`  
+> **Versión Actual del Sistema**: `v1.0.8-alpha`  
 > **Última Actualización**: 21 de octubre de 2026  
 > **Plataforma**: Aplicación Web / Desktop para PC (Windows y Linux)
 

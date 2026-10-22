@@ -356,6 +356,36 @@ export function extractRouteDateSlug(route, points = []) {
 }
 
 /**
+ * Agrupa una lista de rutas por día cronológico (YYYY-MM-DD).
+ * @param {Array<object>} routes - Lista de rutas
+ * @param {Map<string, Array<object>>} pointsByRouteMap - Mapa de puntos por id de ruta
+ * @returns {Map<string, Array<object>>} Mapa ordenado por fecha con la lista de rutas correspondientes
+ */
+export function groupRoutesByDay(routes = [], pointsByRouteMap = new Map()) {
+  const grouped = new Map();
+
+  for (const r of routes) {
+    const pts = (pointsByRouteMap && typeof pointsByRouteMap.get === 'function')
+      ? (pointsByRouteMap.get(r.id) || [])
+      : [];
+    const dateSlug = extractRouteDateSlug(r, pts);
+    if (!grouped.has(dateSlug)) {
+      grouped.set(dateSlug, []);
+    }
+    grouped.get(dateSlug).push(r);
+  }
+
+  // Ordenar cronológicamente por fecha
+  const sortedKeys = Array.from(grouped.keys()).sort();
+  const sortedMap = new Map();
+  for (const k of sortedKeys) {
+    sortedMap.set(k, grouped.get(k));
+  }
+
+  return sortedMap;
+}
+
+/**
  * Limpia un nombre de ruta para que sea un nombre de archivo seguro en Windows y Linux.
  * @param {string} name
  * @param {string} fallback

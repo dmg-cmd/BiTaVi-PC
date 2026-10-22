@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.7-alpha`
+- **Versión Actual**: `v1.0.8-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,13 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.8-alpha` (2026-10-21)
+- **Separación de Rutas por Día y Unión Táctica Diaria (`groupRoutesByDay`)**:
+  - **Organización Visual por Día en la Lista de Rutas**: Las rutas se presentan ordenadas y agrupadas bajo encabezados cronológicos (`📅 YYYY-MM-DD`), con interruptor activo `[📅 Agrupar por Día]` para alternar entre vista agrupada y continua.
+  - **Controles por Día**: Cada cabecera de día incluye casilla maestra para marcar o desmarcar todas las rutas de ese día, botón `[👁️]` para visibilidad por día y botón directo `[🔗 Unir Día]` para generar y descargar inmediatamente el GPX unificado de esa jornada en 1 clic.
+  - **Botón `[📅 Unir por Día (.GPX / ZIP)]` en Barra de Exportación**: Procesa todas las rutas marcadas y genera un archivo `.gpx` unificado por cada día; si se abarcan múltiples días, empaqueta los GPX diarios en un archivo ZIP estructurado.
+  - **Pruebas Automatizadas**: Nueva prueba unitaria para `groupRoutesByDay` en `tests/gpx-tools.test.js` (25/25 pruebas unitarias exitosas).
 
 ### `v1.0.7-alpha` (2026-10-21)
 - **Unificación de Rutas en GPX Único y Empaquetado ZIP Nombrado por Fecha de Primera Ruta**:

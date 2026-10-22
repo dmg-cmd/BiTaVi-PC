@@ -21,7 +21,7 @@
           <div class="logo-text">
             <div class="title-row">
               <h1 class="app-title">BiTaVi</h1>
-              <span class="version-tag">v1.0.7-alpha</span>
+              <span class="version-tag">v1.0.8-alpha</span>
             </div>
             <span class="app-subtitle">BITÁCORA TÁCTICA DE VIAJE</span>
           </div>
@@ -230,9 +230,15 @@
 
             <!-- Mostrar / Ocultar / Gestionar Rutas -->
             <div id="route-select-wrapper" class="hidden" style="margin-bottom: 0.75rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; flex-wrap: wrap; gap: 4px;">
                 <label style="font-size: 0.62rem; color: var(--text-dark); font-weight: 700;">GESTIÓN Y SELECCIÓN DE RUTAS:</label>
-                <button type="button" id="btn-add-route" class="tactical-btn-sm" style="padding: 2px 7px; font-size: 0.62rem;" title="Cargar otra ruta GPX o KML sin borrar las existentes">➕ Agregar Ruta</button>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <label style="display: inline-flex; align-items: center; gap: 3px; font-size: 0.62rem; color: var(--accent-amber); cursor: pointer;" title="Agrupar visualmente las rutas por su fecha de recorrido">
+                    <input type="checkbox" id="chk-group-by-day" checked style="cursor: pointer;" />
+                    <span>📅 Agrupar por Día</span>
+                  </label>
+                  <button type="button" id="btn-add-route" class="tactical-btn-sm" style="padding: 2px 7px; font-size: 0.62rem;" title="Cargar otra ruta GPX o KML sin borrar las existentes">➕ Agregar Ruta</button>
+                </div>
               </div>
               <input type="file" id="route-file-add-input" accept=".gpx,.kml,.txt" multiple style="display: none;" />
               <div id="route-selector" class="route-checklist"></div>
@@ -240,6 +246,7 @@
               <!-- Barra de guardado y exportación de rutas elegidas con nombres personalizados -->
               <div id="route-export-bar" class="route-export-bar" style="margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;">
                 <button type="button" id="btn-save-combined-route" class="tactical-btn-sm accent" style="flex: 1; padding: 4px 6px; font-size: 0.66rem;" title="Unir todas las rutas marcadas en un único archivo GPX continuo o multisegmento">🔗 Unir en Una Sola Ruta (.GPX)</button>
+                <button type="button" id="btn-save-by-day" class="tactical-btn-sm" style="flex: 1; padding: 4px 6px; font-size: 0.66rem; border-color: var(--accent-amber); color: var(--accent-amber);" title="Unir automáticamente las rutas marcadas agrupándolas por cada día en archivos GPX">📅 Unir por Día (.GPX / ZIP)</button>
                 <button type="button" id="btn-save-selected-zip" class="tactical-btn-sm" style="flex: 1; padding: 4px 6px; font-size: 0.66rem;" title="Guardar las rutas marcadas en archivos separados dentro de un ZIP nombrado con la fecha de la primera ruta">📦 ZIP Rutas Separadas</button>
                 <button type="button" id="btn-save-selected-kml" class="tactical-btn-sm" style="padding: 4px 6px; font-size: 0.66rem;" title="Exportar rutas seleccionadas y waypoints a KML para Google Earth">🌍 KML 3D</button>
                 <button type="button" id="btn-save-selected-kmz" class="tactical-btn-sm" style="flex: 1; padding: 4px 6px; font-size: 0.66rem; border-color: var(--accent-cyan);" title="Exportar paquete KMZ con rutas y fotos para Google Earth 3D">🌐 KMZ 3D (con Fotos)</button>
