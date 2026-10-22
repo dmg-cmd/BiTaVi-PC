@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.9-alpha`
+- **Versión Actual**: `v1.1.10-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,19 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.10-alpha` (2026-10-22)
+- **Expansión Vertical Completa de la Lista de Rutas, Modo Fichas Tácticas Detalladas y Telemetría por Día**:
+  - **Aprovechamiento Integral del Espacio Vertical en Rutas**:
+    - Se eliminó la restricción rígida de 220px (`max-height: 220px`) en `.route-checklist`. Al seleccionar la pestaña "Rutas", la lista se expande dinámicamente ocupando todo el alto disponible hacia abajo en la pantalla (`max-height: calc(100vh - 350px); min-height: 280px`), permitiendo visualizar decenas de rutas simultáneamente sin dejar espacios negros desaprovechados.
+    - Se incorporó una barra de desplazamiento táctica con resplandor cian suave (`rgba(0, 240, 255, 0.25)`).
+  - **Conmutador de Modos de Visualización (Lista Compacta 📋 vs Fichas Detalladas 🗂️)**:
+    - Se agregaron los botones `#btn-routes-view-compact` y `#btn-routes-view-cards` en la cabecera de la sección de rutas.
+    - En **Modo Fichas Detalladas (`.cards-view`)**, cada ruta se presenta en una tarjeta táctica espaciosa con relieve, swatch de trazo ampliado a 14px, título en negrita, badge de distancia destacada y una barra inferior con contador de puntos GPS (`pts`) y botones de acción cómodos (Simular ▶, Ocultar/Mostrar 👁️, Descargar GPX 💾, Eliminar ✕).
+  - **Contador Dinámico de Rutas en Cabecera**:
+    - Se incorporó el badge interactivo `#routes-counter-badge` en la cabecera de la sección 01, sincronizado en tiempo real con la cantidad de rutas cargadas.
+  - **Telemetría Acumulada por Día**:
+    - En la vista agrupada por día (`groupRoutesByDay`), cada encabezado diario ahora calcula y muestra automáticamente tanto la cantidad de recorridos como el kilometraje acumulado total de esa jornada (ej. `📅 2026-06-13 (3 rutas · 42.50 km)`).
 
 ### `v1.1.9-alpha` (2026-10-22)
 - **Expansión Vertical Completa de Galería de Fotos, Miniaturas Ampliadas y Modo Cuadrícula Táctica**:

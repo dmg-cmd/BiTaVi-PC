@@ -1652,15 +1652,25 @@ body.tactical-dark {
   .route-checklist {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    max-height: 220px;
+    gap: 6px;
+    max-height: calc(100vh - 350px);
+    min-height: 280px;
     overflow-y: auto;
-    background: #070a12;
+    background: rgba(7, 10, 18, 0.9);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    padding: 0.5rem;
     font-family: var(--font-mono);
     font-size: 0.68rem;
+    transition: all 0.2s ease;
+  }
+
+  .route-checklist::-webkit-scrollbar {
+    width: 5px;
+  }
+  .route-checklist::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.25);
+    border-radius: 4px;
   }
 
   .route-check-item {
@@ -1691,29 +1701,58 @@ body.tactical-dark {
   .route-item-row {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 6px;
-    padding: 3px 5px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: background 0.15s ease, border-color 0.15s ease;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: rgba(10, 15, 26, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   }
 
   .route-item-row:hover {
-    background: rgba(0, 240, 255, 0.06);
-    border-color: rgba(0, 240, 255, 0.2);
+    background: rgba(18, 28, 48, 0.95);
+    border-color: var(--accent-cyan);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 240, 255, 0.14);
   }
 
   .route-item-row.route-hidden-row {
     opacity: 0.55;
   }
 
+  .route-card-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .route-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .route-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
   .route-swatch {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     border-radius: 3px;
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.4);
     flex: 0 0 auto;
+    transition: transform 0.15s ease;
+  }
+
+  .route-item-row:hover .route-swatch {
+    transform: scale(1.15);
   }
 
   .route-name-container {
@@ -1774,10 +1813,102 @@ body.tactical-dark {
   }
 
   .route-dist-tag {
-    font-size: 0.62rem;
+    font-size: 0.64rem;
     color: var(--accent-cyan);
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    padding: 1px 4px;
+    border-radius: 3px;
     flex: 0 0 auto;
     font-weight: 600;
+  }
+
+  .route-pts-tag {
+    font-size: 0.58rem;
+    color: var(--text-dark);
+    font-family: var(--font-mono);
+    flex: 0 0 auto;
+  }
+
+  /* Modo Fichas Tácticas Detalladas (Rutas Grandes) */
+  .route-checklist.cards-view {
+    gap: 8px;
+  }
+
+  .route-checklist.cards-view .route-item-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(12, 18, 32, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.18);
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  .route-checklist.cards-view .route-item-row:hover {
+    background: rgba(18, 28, 48, 0.95);
+    border-color: var(--accent-cyan);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(0, 240, 255, 0.2);
+  }
+
+  .route-checklist.cards-view .route-card-main {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .route-checklist.cards-view .route-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+  }
+
+  .route-checklist.cards-view .route-name-text {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .route-checklist.cards-view .route-dist-tag {
+    font-size: 0.70rem;
+    font-weight: 700;
+    padding: 2px 6px;
+  }
+
+  .route-checklist.cards-view .route-card-actions {
+    width: 100%;
+    justify-content: space-between;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 6px;
+  }
+
+  .route-checklist.cards-view .route-pts-tag {
+    font-size: 0.64rem;
+    color: var(--accent-amber);
+    font-weight: 600;
+  }
+
+  .route-checklist.cards-view .route-action-buttons {
+    gap: 4px;
+  }
+
+  .route-checklist.cards-view .route-action-buttons .btn-inline-icon {
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .route-checklist.cards-view .route-action-buttons .btn-inline-icon:hover {
+    background: rgba(0, 240, 255, 0.15);
+    border-color: var(--accent-cyan);
+  }
+
+  .routes-view-btn.active {
+    background: rgba(0, 240, 255, 0.2) !important;
+    color: var(--accent-cyan) !important;
+    border-color: var(--accent-cyan) !important;
   }
 
   /* Desplazar el control de zoom cuando el rail de fotos está activo */

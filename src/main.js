@@ -101,6 +101,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Route Telemetry Elements
   const routeSelectWrapper = document.getElementById('route-select-wrapper');
   const routeSelector = document.getElementById('route-selector');
+  const routesCounterBadge = document.getElementById('routes-counter-badge');
+  const btnRoutesViewCompact = document.getElementById('btn-routes-view-compact');
+  const btnRoutesViewCards = document.getElementById('btn-routes-view-cards');
   const btnAddRoute = document.getElementById('btn-add-route');
   const btnAddRouteAction = document.getElementById('btn-add-route-action');
   const routeFileAddInput = document.getElementById('route-file-add-input');
@@ -605,6 +608,9 @@ document.addEventListener('DOMContentLoaded', () => {
     statPoints.textContent = stats.totalPoints.toLocaleString();
     statElevation.textContent = `${stats.routesCount} r / ${stats.markersCount + stats.favoritesCount} m`;
     showRouteDate(nativeParser.routes);
+    if (routesCounterBadge) {
+      routesCounterBadge.textContent = stats.routesCount || 0;
+    }
     if (stats.routesCount > 0) {
       routeActions.classList.remove('hidden');
     } else {
@@ -613,6 +619,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function populateRouteSelector(routes) {
+    if (routesCounterBadge) {
+      routesCounterBadge.textContent = routes ? routes.length : '0';
+    }
+
     if (!routes || routes.length === 0) {
       routeSelectWrapper.classList.add('hidden');
       return;
@@ -620,8 +630,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     routeSelectWrapper.classList.remove('hidden');
     const colorMap = nativeParser.getRouteColorMap();
+    const isCardsView = routeSelector.classList.contains('cards-view');
     routeSelector.innerHTML = '';
-    routeSelector.className = 'route-checklist';
+    routeSelector.className = isCardsView ? 'route-checklist cards-view' : 'route-checklist';
 
     // Fila maestra: seleccionar/deseleccionar todas para exportar y contador
     const allWrap = document.createElement('div');
@@ -683,24 +694,33 @@ document.addEventListener('DOMContentLoaded', () => {
     function createRouteRow(r) {
       const color = colorMap.get(r.id) || '#00f0ff';
       const isVisible = nativeParser.visibleRoutes.has(r.id);
+      const pts = nativeParser.pointsByRoute.get(r.id) || [];
+      const ptCount = pts.length;
 
       const row = document.createElement('div');
       row.className = `route-item-row ${isVisible ? '' : 'route-hidden-row'}`;
       row.dataset.routeId = r.id;
 
       row.innerHTML = `
-        <input type="checkbox" class="route-export-box" data-route-id="${r.id}" ${isVisible ? 'checked' : ''} title="Mostrar / Ocultar esta ruta en el mapa y seleccionarla para guardar">
-        <span class="route-swatch" style="background:${color}" title="Color asignado en el mapa"></span>
-        <div class="route-name-container">
-          <span class="route-name-text" title="Clic para renombrar">${r.name}</span>
-          <input type="text" class="route-name-input hidden" value="${r.name}" />
-          <button type="button" class="btn-inline-icon btn-rename-route" title="Renombrar ruta">✏️</button>
+        <div class="route-card-main">
+          <input type="checkbox" class="route-export-box" data-route-id="${r.id}" ${isVisible ? 'checked' : ''} title="Mostrar / Ocultar esta ruta en el mapa y seleccionarla para guardar">
+          <span class="route-swatch" style="background:${color}" title="Color asignado en el mapa"></span>
+          <div class="route-name-container">
+            <span class="route-name-text" title="Clic para renombrar">${r.name}</span>
+            <input type="text" class="route-name-input hidden" value="${r.name}" />
+            <button type="button" class="btn-inline-icon btn-rename-route" title="Renombrar ruta">✏️</button>
+          </div>
+          <span class="route-dist-tag monospace">${r.distanceKm} km</span>
         </div>
-        <span class="route-dist-tag monospace">${r.distanceKm} km</span>
-        <button type="button" class="btn-inline-icon btn-play-route" title="Simular / Reproducir esta ruta en el mapa" style="color:var(--accent-cyan);">▶</button>
-        <button type="button" class="btn-inline-icon btn-toggle-vis" title="Mostrar/Ocultar en el mapa">${isVisible ? '👁️' : '🙈'}</button>
-        <button type="button" class="btn-inline-icon btn-download-gpx" title="Guardar esta ruta individual en .GPX con su nombre">💾</button>
-        <button type="button" class="btn-inline-icon btn-danger btn-delete-route" title="Eliminar ruta del mapa">✕</button>
+        <div class="route-card-actions">
+          <span class="route-pts-tag monospace" title="Cantidad de puntos GPS">${ptCount} pts</span>
+          <div class="route-action-buttons">
+            <button type="button" class="btn-inline-icon btn-play-route" title="Simular / Reproducir esta ruta en el mapa" style="color:var(--accent-cyan);">▶</button>
+            <button type="button" class="btn-inline-icon btn-toggle-vis" title="Mostrar/Ocultar en el mapa">${isVisible ? '👁️' : '🙈'}</button>
+            <button type="button" class="btn-inline-icon btn-download-gpx" title="Guardar esta ruta individual en .GPX con su nombre">💾</button>
+            <button type="button" class="btn-inline-icon btn-danger btn-delete-route" title="Eliminar ruta del mapa">✕</button>
+          </div>
+        </div>
       `;
 
       const exportBox = row.querySelector('.route-export-box');
@@ -855,7 +875,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isSinFecha = dateSlug === 'Sin Fecha';
         const dayLabel = isSinFecha ? '📁 Sin Fecha Detectada' : `📅 ${dateSlug}`;
-        const countLabel = `${dayRoutes.length} ${dayRoutes.length === 1 ? 'ruta' : 'rutas'}`;
+        const totalDayKm = dayRoutes.reduce((acc, r) => acc + (parseFloat(r.distanceKm) || 0), 0).toFixed(2);
+        const countLabel = `${dayRoutes.length} ${dayRoutes.length === 1 ? 'ruta' : 'rutas'} · ${totalDayKm} km`;
         const allDayVisible = dayRoutes.every(r => r.visible !== false);
         dayHeader.innerHTML = `
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:0.68rem; font-weight:700; color:${isSinFecha ? 'var(--text-muted)' : 'var(--accent-amber)'};">
@@ -2556,6 +2577,21 @@ document.addEventListener('DOMContentLoaded', () => {
       photosList.classList.add('grid-view');
       btnPhotosViewGrid.classList.add('active');
       btnPhotosViewList.classList.remove('active');
+    });
+  }
+
+  // Controles de Vista de la Gestión de Rutas (Lista Compacta vs Fichas Detalladas)
+  if (btnRoutesViewCompact && btnRoutesViewCards && routeSelector) {
+    btnRoutesViewCompact.addEventListener('click', () => {
+      routeSelector.classList.remove('cards-view');
+      btnRoutesViewCompact.classList.add('active');
+      btnRoutesViewCards.classList.remove('active');
+    });
+
+    btnRoutesViewCards.addEventListener('click', () => {
+      routeSelector.classList.add('cards-view');
+      btnRoutesViewCards.classList.add('active');
+      btnRoutesViewCompact.classList.remove('active');
     });
   }
 
