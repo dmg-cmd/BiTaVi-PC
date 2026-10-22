@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { BiTaViMap } from './components/map.js';
-import { GpxHandler, sanitizeFilename, downloadBlob, createCombinedGpxXml, extractRouteDateSlug, groupRoutesByDay } from './components/gpx-parser.js';
+import { GpxHandler, sanitizeFilename, downloadBlob, createCombinedGpxXml, extractRouteDateSlug, extractDateFromName, groupRoutesByDay } from './components/gpx-parser.js';
 import { PhotoHandler } from './components/photo-parser.js';
 import { ZipBackupHandler } from './components/zip-loader.js';
 import { GeoSearch } from './components/search.js';
@@ -850,6 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSinFecha = dateSlug === 'Sin Fecha';
         const dayLabel = isSinFecha ? '📁 Sin Fecha Detectada' : `📅 ${dateSlug}`;
         const countLabel = `${dayRoutes.length} ${dayRoutes.length === 1 ? 'ruta' : 'rutas'}`;
+        const allDayVisible = dayRoutes.every(r => r.visible !== false);
         dayHeader.innerHTML = `
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:0.68rem; font-weight:700; color:${isSinFecha ? 'var(--text-muted)' : 'var(--accent-amber)'};">
             <input type="checkbox" class="route-day-box" ${allDayVisible ? 'checked' : ''} title="Marcar/desmarcar todas las rutas de ${dayLabel}">
@@ -936,7 +937,34 @@ document.addEventListener('DOMContentLoaded', () => {
           if (parsed && parsed.points && parsed.points.length > 0) {
             const fileNameWithoutExt = f.name.replace(/\.[^/.]+$/, '');
             const routeName = parsed.name || fileNameWithoutExt || `Ruta ${nativeParser.routes.length + 1}`;
-            nativeParser.addRoute({ name: routeName }, parsed.points, true);
+            
+            let routeStartTime = parsed.startTime || null;
+            let routeStartDate = parsed.startDate || null;
+
+            if (!routeStartTime) {
+              const dateFromName = extractDateFromName(f.name);
+              if (dateFromName) {
+                routeStartDate = dateFromName;
+                const d = new Date(`${dateFromName}T12:00:00Z`);
+                if (!isNaN(d.getTime())) routeStartTime = d.getTime();
+              }
+            }
+
+            if (!routeStartTime && f.lastModified) {
+              const d = new Date(f.lastModified);
+              if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+                routeStartTime = f.lastModified;
+                routeStartDate = d.toISOString().split('T')[0];
+              }
+            }
+
+            nativeParser.addRoute({
+              name: routeName,
+              startTime: routeStartTime,
+              startDate: routeStartDate,
+              fileName: f.name,
+              lastModified: f.lastModified || null
+            }, parsed.points, true);
             addedCount++;
           }
         } else if (f.name.toLowerCase().endsWith('.zip')) {
@@ -944,8 +972,36 @@ document.addEventListener('DOMContentLoaded', () => {
           if (extracted.gpxText) {
             const parsed = gpxHandler.parseGpxText(extracted.gpxText);
             if (parsed.points && parsed.points.length > 0) {
-              const routeName = parsed.name || f.name.replace(/\.[^/.]+$/, '');
-              nativeParser.addRoute({ name: routeName }, parsed.points, true);
+              const fileNameWithoutExt = f.name.replace(/\.[^/.]+$/, '');
+              const routeName = parsed.name || fileNameWithoutExt || `Ruta ${nativeParser.routes.length + 1}`;
+              
+              let routeStartTime = parsed.startTime || null;
+              let routeStartDate = parsed.startDate || null;
+
+              if (!routeStartTime) {
+                const dateFromName = extractDateFromName(f.name);
+                if (dateFromName) {
+                  routeStartDate = dateFromName;
+                  const d = new Date(`${dateFromName}T12:00:00Z`);
+                  if (!isNaN(d.getTime())) routeStartTime = d.getTime();
+                }
+              }
+
+              if (!routeStartTime && f.lastModified) {
+                const d = new Date(f.lastModified);
+                if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+                  routeStartTime = f.lastModified;
+                  routeStartDate = d.toISOString().split('T')[0];
+                }
+              }
+
+              nativeParser.addRoute({
+                name: routeName,
+                startTime: routeStartTime,
+                startDate: routeStartDate,
+                fileName: f.name,
+                lastModified: f.lastModified || null
+              }, parsed.points, true);
               addedCount++;
             }
           }

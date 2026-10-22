@@ -1,6 +1,6 @@
 [package]
 name = "bitavi-pc"
-version = "1.0.9"
+version = "1.0.10"
 description = "BiTaVi PC - Bitacora Tactica de Viaje"
 authors = ["BiTaVi Team"]
 license = "MIT"

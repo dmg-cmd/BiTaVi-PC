@@ -526,6 +526,9 @@ export class BiTaViNativeParser {
         startTime = parseFlexibleTimestamp(firstWithTime.timestamp || firstWithTime.time);
       }
     }
+    if (!startTime && routeData.lastModified) {
+      startTime = parseFlexibleTimestamp(routeData.lastModified);
+    }
 
     let startDate = routeData.startDate;
     if (!startDate || startDate === 'Fecha N/D') {
@@ -542,7 +545,9 @@ export class BiTaViNativeParser {
       distanceM: Math.round(distM),
       maxSpeed: routeData.maxSpeed || '0.0',
       avgSpeed: routeData.avgSpeed || '0.0',
-      durationMin: routeData.durationMin || 0
+      durationMin: routeData.durationMin || 0,
+      fileName: routeData.fileName || null,
+      lastModified: routeData.lastModified || null
     };
 
     this.routes.push(newRoute);

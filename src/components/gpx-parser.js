@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { parseFlexibleTimestamp } from './bitavi-native-parser.js';
 
 export class GpxHandler {
   constructor(mapInstance) {
@@ -75,8 +76,44 @@ export class GpxHandler {
       trackName = nameEl.textContent.trim();
     }
 
+    // Extract Track / Route / Metadata Time
+    let trackTime = null;
+    const timeEl = xmlDoc.querySelector('metadata > time, trk > time, rte > time');
+    if (timeEl && timeEl.textContent) {
+      trackTime = timeEl.textContent.trim();
+    }
+    if (!trackTime && trackPoints.length > 0) {
+      const firstWithTime = trackPoints.find(p => p.time);
+      if (firstWithTime) {
+        trackTime = firstWithTime.time;
+      }
+    }
+
+    let startTime = null;
+    let startDate = null;
+    if (trackTime) {
+      const parsedTime = parseFlexibleTimestamp(trackTime);
+      if (parsedTime) {
+        startTime = parsedTime;
+        const d = new Date(startTime);
+        if (!isNaN(d.getTime())) {
+          startDate = d.toISOString().split('T')[0];
+        }
+      } else {
+        const fromName = extractDateFromName(trackTime);
+        if (fromName) {
+          startDate = fromName;
+          const d = new Date(`${fromName}T12:00:00Z`);
+          if (!isNaN(d.getTime())) startTime = d.getTime();
+        }
+      }
+    }
+
     return {
       name: trackName,
+      time: trackTime,
+      startTime,
+      startDate,
       points: trackPoints,
       waypoints,
       totalDistanceKm: (totalDistance / 1000).toFixed(2),
@@ -433,7 +470,25 @@ export function extractRouteDateSlug(route, points = []) {
     if (fromStart) return fromStart;
   }
 
-  // 5. Probar route.id (por si es un timestamp o contiene fecha)
+  // 5. Probar route.fileName si existe
+  if (route && route.fileName) {
+    const fromFile = extractDateFromName(route.fileName);
+    if (fromFile) return fromFile;
+  }
+
+  // 6. Probar route.lastModified si existe
+  if (route && route.lastModified) {
+    const num = Number(route.lastModified);
+    if (!isNaN(num) && num > 1000000000) {
+      const ms = (num < 10000000000) ? num * 1000 : num;
+      const d = new Date(ms);
+      if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+        return d.toISOString().split('T')[0];
+      }
+    }
+  }
+
+  // 7. Probar route.id (por si es un timestamp o contiene fecha)
   if (route && route.id) {
     const fromId = extractDateFromName(String(route.id));
     if (fromId) return fromId;

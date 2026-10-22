@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeFilename, createGpxXml, createCombinedGpxXml, extractRouteDateSlug, extractDateFromName, groupRoutesByDay } from '../src/components/gpx-parser.js';
+import { GpxHandler, sanitizeFilename, createGpxXml, createCombinedGpxXml, extractRouteDateSlug, extractDateFromName, groupRoutesByDay } from '../src/components/gpx-parser.js';
 
 describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
   it('sanitizeFilename limpia caracteres ilegales en Windows y Linux', () => {
@@ -102,5 +102,51 @@ describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
     expect(grouped.get('2026-06-25').length).toBe(2);
     expect(grouped.get('2026-06-26').length).toBe(1);
     expect(grouped.get('2024-06-26').length).toBe(1);
+  });
+
+  it('GpxHandler.parseGpxText extrae startTime y startDate desde metadata time o track time', () => {
+    const handler = new GpxHandler(null);
+    const gpxWithMeta = `<?xml version="1.0" encoding="UTF-8"?>
+      <gpx version="1.1" creator="Test">
+        <metadata>
+          <time>2024-05-10T08:30:00Z</time>
+        </metadata>
+        <trk>
+          <name>Patrulla Mayo</name>
+          <trkseg>
+            <trkpt lat="-34.60" lon="-58.38"><ele>10</ele></trkpt>
+          </trkseg>
+        </trk>
+      </gpx>`;
+    
+    const parsed = handler.parseGpxText(gpxWithMeta);
+    expect(parsed.name).toBe('Patrulla Mayo');
+    expect(parsed.startDate).toBe('2024-05-10');
+    expect(parsed.startTime).toBeGreaterThan(0);
+  });
+
+  it('extractRouteDateSlug y groupRoutesByDay resuelven fechas por fileName y lastModified separando múltiples archivos', () => {
+    const routeFile = { name: 'Track', fileName: 'salida_2024-07-15.gpx' };
+    expect(extractRouteDateSlug(routeFile)).toBe('2024-07-15');
+
+    // Emular 81 archivos cargados con diferentes nombres o fechas de modificación
+    const routes81 = [];
+    for (let i = 1; i <= 81; i++) {
+      const day = (i % 3) + 1; // 3 días distintos: 2024-05-01, 2024-05-02, 2024-05-03
+      routes81.push({
+        id: `route_${i}`,
+        name: `Track_${i}`,
+        fileName: `actividad_2024-05-0${day}_parte_${i}.gpx`,
+        lastModified: 1714564800000 + day * 86400000
+      });
+    }
+
+    const grouped = groupRoutesByDay(routes81);
+    // Deben agruparse en 3 días distintos, no en 1 solo grupo
+    expect(grouped.size).toBe(3);
+    expect(grouped.has('2024-05-01')).toBe(true);
+    expect(grouped.has('2024-05-02')).toBe(true);
+    expect(grouped.has('2024-05-03')).toBe(true);
+    expect(grouped.get('2024-05-01').length + grouped.get('2024-05-02').length + grouped.get('2024-05-03').length).toBe(81);
   });
 });

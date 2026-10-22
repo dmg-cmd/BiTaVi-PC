@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.9-alpha`
+- **Versión Actual**: `v1.0.10-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,14 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.0.10-alpha` (2026-10-22)
+- **Corrección Crítica de Agrupación por Día y Extracción de Metadatos en GPX Masivos**:
+  - **Corrección de Excepción en Renderizado (`ReferenceError: allDayVisible`)**: Solucionado el error en tiempo de ejecución en `populateRouteSelector` provocado por la variable `allDayVisible` no declarada en el ámbito de los grupos diarios. Ahora se calcula reactivamente con `dayRoutes.every(r => r.visible !== false)`, permitiendo que la lista se dibuje e interactúe sin bloqueos.
+  - **Extracción de Tiempo en GPX (`parseGpxText`)**: Reconoce metadatos de tiempo `<metadata><time>`, marcas de tiempo a nivel de track `<trk><time>` y `<rte><time>`, y tiempo del primer punto registrado en el archivo GPX.
+  - **Carga de Archivos Múltiples (`addNewRoutesFromFiles`)**: Al agregar múltiples archivos GPX o ZIP (como los 81 archivos del usuario), se extrae la fecha del XML interno, del nombre del archivo en disco (`extractDateFromName`) o de la fecha de última modificación física del archivo (`f.lastModified`), evitando que queden sin fecha.
+  - **Integración en `extractRouteDateSlug` y `addRoute`**: Considera `route.fileName` y `route.lastModified` como fuentes confiables de fechado cronológico.
+  - **Pruebas Automatizadas**: Nuevas pruebas unitarias para `parseGpxText` y resolución de días en lotes masivos de 81 rutas en `tests/gpx-tools.test.js` (30/30 pruebas unitarias exitosas).
 
 ### `v1.0.9-alpha` (2026-10-21)
 - **Corrección y Robustecimiento Integral de Detección Cronológica y Agrupación por Días**:
