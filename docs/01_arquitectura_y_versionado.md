@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.7-alpha`
+- **Versión Actual**: `v1.1.8-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,20 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.8-alpha` (2026-10-22)
+- **Auto-Renderizado Inmediato de Rutas JSON, Selector de Carpeta Completa y Diagnóstico Táctico de Carga**:
+  - **Auto-Renderizado de Rutas en `parseJsonData` (`src/components/bitavi-native-parser.js`)**:
+    - Se garantizó que al añadir rutas mediante `parseBitaviBackupJson()` o el motor universal de JSON, se invoque de forma automática `renderRoute('all')`, dibujando la polilínea en el mapa Leaflet sin depender de llamadas externas.
+    - Se enriqueció `getPhotoGeoMap()` con el nombre de la parada y la fuente de geolocalización explícita (`source: 'favoritos'`).
+  - **Corrección Crítica de Contingencia en Conexión de Carpetas (`src/components/folder-loader.js`)**:
+    - Se subsanó un `ReferenceError` en `_connectWithInputFallback()` donde se referenciaba `allFiles` en lugar de `files`, lo que provocaba un fallo silencioso al conectar carpetas en navegadores con fallback de input.
+  - **Botón y Selector de Carpeta Descomprimida (`#btn-upload-folder` e input `webkitdirectory`)**:
+    - Se incorporó en el dropzone y en el menú superior el botón "📂 Cargar Carpeta de Viaje", permitiendo en Windows seleccionar con un solo clic la carpeta de la expedición (`Zip/`), leyendo recursivamente `ruta.json`, `favoritos.json` y todas las fotografías de la subcarpeta `fotos/`.
+  - **Diagnóstico Táctico Asistido para Cargas Incompletas (`src/main.js`)**:
+    - Si el usuario carga únicamente fotografías y paradas sin incluir el archivo de ruta (`ruta.json` o `rutas.txt`), el sistema muestra un mensaje informativo claro en el cursor y la telemetría guiando al usuario para arrastrar o cargar el archivo de ruta correspondiente.
+  - **Políticas Anti-Caché en Navegador**:
+    - Se incorporaron metaetiquetas `Cache-Control: no-cache, no-store, must-revalidate` y `Pragma: no-cache` en `index.html` para prevenir la retención de versiones anteriores en navegadores locales.
 
 ### `v1.1.7-alpha` (2026-10-22)
 - **Auto-Encuadre Cartográfico Inteligente, Detección de Expediciones Descomprimidas en Carpetas y Botón Táctico Superior de Rutas**:

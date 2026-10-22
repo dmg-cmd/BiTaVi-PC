@@ -305,6 +305,9 @@ export class BiTaViNativeParser {
     // Debe evaluarse antes que el escáner heurístico para no perder nombre, fecha ni distancia.
     if (this.parseBitaviBackupJson(data, fallbackName)) {
       this.renderMarkersAndFavorites();
+      if (this.routes.length > 0) {
+        this.renderRoute('all');
+      }
       return true;
     }
 
@@ -588,6 +591,9 @@ export class BiTaViNativeParser {
 
     if (added) {
       this.renderMarkersAndFavorites();
+      if (this.routes.length > 0) {
+        this.renderRoute('all');
+      }
     }
 
     return added;
@@ -785,6 +791,9 @@ export class BiTaViNativeParser {
 
     if (added) {
       this.renderMarkersAndFavorites();
+      if (this.routes.length > 0) {
+        this.renderRoute('all');
+      }
     }
     return added;
   }
@@ -853,11 +862,12 @@ export class BiTaViNativeParser {
     this.favorites.forEach(f => {
       if (f.photoFile && !isNaN(f.lat) && !isNaN(f.lng)) {
         const cleanName = f.photoFile.toLowerCase().trim();
-        map.set(cleanName, { lat: f.lat, lng: f.lng });
+        const payload = { lat: f.lat, lng: f.lng, name: f.name || 'Parada BiTaVi', source: 'favoritos' };
+        map.set(cleanName, payload);
         // Registrar también sin extensión para tolerancia
         const withoutExt = cleanName.replace(/\.[^/.]+$/, '');
         if (withoutExt && withoutExt !== cleanName) {
-          map.set(withoutExt, { lat: f.lat, lng: f.lng });
+          map.set(withoutExt, payload);
         }
       }
     });

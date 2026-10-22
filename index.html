@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>BiTaVi - Bitácora Táctica de Viaje</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,7 +24,7 @@
           <div class="logo-text">
             <div class="title-row">
               <h1 class="app-title">BiTaVi</h1>
-              <span class="version-tag">v1.1.7-alpha</span>
+              <span class="version-tag">v1.1.8-alpha</span>
             </div>
             <span class="app-subtitle">BITÁCORA TÁCTICA DE VIAJE</span>
           </div>
@@ -34,6 +37,7 @@
             <button type="button" class="top-menu-btn" data-menu="file" title="Opciones de archivo, carga y guardado">📁 Archivo ▾</button>
             <div class="top-menu-popup hidden" id="menu-popup-file">
               <button type="button" class="menu-item" id="menu-action-load-zip"><span>📦</span> Cargar Backup (.ZIP / Carpeta)</button>
+              <button type="button" class="menu-item" id="menu-action-load-folder"><span>📂</span> Cargar Carpeta de Viaje (Descomprimida)</button>
               <button type="button" class="menu-item" id="menu-action-load-gpx"><span>🗺️</span> Cargar Rutas (.GPX / .JSON)</button>
               <button type="button" class="menu-item" id="menu-action-connect-folder"><span>📁</span> Conectar Carpeta (Drive / PC)</button>
               <button type="button" class="menu-item" id="menu-action-gdrive"><span>☁️</span> Google Drive...</button>
@@ -276,13 +280,15 @@
             </div>
             <div class="upload-dropzone" id="dropzone">
               <input type="file" id="file-input" multiple accept=".zip,.gpx,.kml,.geojson,.json,.txt,image/*,.jpg,.jpeg,.png,.heic,.webp" style="display: none;" />
+              <input type="file" id="folder-input" webkitdirectory directory multiple style="display: none;" />
               <div class="dropzone-inner">
                 <div class="dropzone-icon">📦</div>
                 <p class="dropzone-text">Arrastra el archivo <strong>.ZIP de Backup</strong> (o archivos <strong>.JSON / .GPX / .TXT / Fotos</strong>)</p>
-                <span class="dropzone-sub">o archivos individuales <strong>.GPX</strong>, <strong>.JSON</strong> y <strong>Fotos</strong></span>
+                <span class="dropzone-sub">o una <strong>Carpeta Completa</strong> con rutas, favoritos y fotos</span>
                 <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; flex-wrap: wrap;">
-                  <button type="button" class="tactical-btn-sm" id="btn-browse-files">📂 Explorar Archivos</button>
-                  <button type="button" class="tactical-btn-sm highlight-btn" id="btn-browse-folder" title="Conectar carpeta local o sincronizada por Google Drive en PC para listar y seleccionar backups">📁 Conectar Carpeta (Drive / PC)</button>
+                  <button type="button" class="tactical-btn-sm" id="btn-browse-files">📄 Explorar Archivos</button>
+                  <button type="button" class="tactical-btn-sm highlight-btn" id="btn-upload-folder" title="Selecciona directamente la carpeta descomprimida del viaje (lee automáticamente ruta.json, favoritos.json y fotos)">📂 Cargar Carpeta de Viaje</button>
+                  <button type="button" class="tactical-btn-sm" id="btn-browse-folder" title="Conectar carpeta local o sincronizada por Google Drive en PC para listar y seleccionar backups">📁 Conectar Carpeta Drive</button>
                   <button type="button" class="tactical-btn-sm" id="btn-load-sample-zip">⚡ Cargar Demo ZIP</button>
                 </div>
               </div>

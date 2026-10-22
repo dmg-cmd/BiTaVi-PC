@@ -53,7 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('file-input');
+  const folderInput = document.getElementById('folder-input');
   const btnBrowseFiles = document.getElementById('btn-browse-files');
+  const btnUploadFolder = document.getElementById('btn-upload-folder');
   const btnBrowseFolder = document.getElementById('btn-browse-folder');
   const btnLoadSampleZip = document.getElementById('btn-load-sample-zip');
   
@@ -1948,6 +1950,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (btnUploadFolder) {
+    btnUploadFolder.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (folderInput) {
+        folderInput.click();
+      } else if (fileInput) {
+        fileInput.click();
+      }
+    });
+  }
+
+  if (folderInput) {
+    folderInput.addEventListener('change', async (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        showProgress('CARGANDO CARPETA DE VIAJE', `${e.target.files.length} archivos`, 15, 'Procesando archivos de la carpeta...', 'Telemetría y fotos');
+        await handleFiles(e.target.files);
+      }
+      e.target.value = '';
+    });
+  }
+
   dropzone.addEventListener('click', () => {
     fileInput.click();
   });
@@ -2387,7 +2410,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (typeof setActiveSidebarTab === 'function') {
         setActiveSidebarTab('photos');
       }
-      cursorCoords.textContent = `📷 ${photoHandler.photos.length} fotografía(s) geolocalizada(s) en el mapa.`;
+      const favCount = nativeParser.favorites?.length || 0;
+      cursorCoords.textContent = `📷 ${photoHandler.photos.length} foto(s) ubicadas en el mapa${favCount > 0 ? ` (${favCount} paradas BiTaVi)` : ''}. Para dibujar el trazado del viaje, arrastra o selecciona el archivo "ruta.json".`;
     }
 
     // Refrescar el catálogo del buscador táctico local con todas las entidades cargadas
@@ -3057,6 +3081,14 @@ document.addEventListener('DOMContentLoaded', () => {
   bindMenuAction('menu-action-load-zip', () => {
     setActiveSidebarTab('load');
     fileInput.click();
+  });
+  bindMenuAction('menu-action-load-folder', () => {
+    setActiveSidebarTab('load');
+    if (folderInput) {
+      folderInput.click();
+    } else {
+      btnBrowseFolder?.click();
+    }
   });
   bindMenuAction('menu-action-load-gpx', () => {
     setActiveSidebarTab('load');

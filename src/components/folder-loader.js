@@ -494,7 +494,7 @@ export class FolderBackupLoader {
         });
 
         this.cachedBackups = backups;
-        const isSingleDirectBackup = (hasRutasTxt && hasPuntosTxt) || hasRutaJson || (hasFavsJson && allFiles.some(f => /\.(jpg|jpeg|png|webp|heic)$/i.test(f.name)));
+        const isSingleDirectBackup = (hasRutasTxt && hasPuntosTxt) || hasRutaJson || (hasFavsJson && files.some(f => /\.(jpg|jpeg|png|webp|heic)$/i.test(f.name)));
 
         resolve({
           folderName,
