@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.8-alpha`
+- **Versión Actual**: `v1.1.9-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,20 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.9-alpha` (2026-10-22)
+- **Expansión Vertical Completa de Galería de Fotos, Miniaturas Ampliadas y Modo Cuadrícula Táctica**:
+  - **Aprovechamiento Integral del Espacio Vertical del Panel Lateral**:
+    - Se eliminó la restricción fija previa (`max-height: 250px`) en `.photos-list`. Ahora la galería se expande dinámicamente ocupando todo el alto disponible hacia abajo en la pantalla (`max-height: calc(100vh - 220px); min-height: 280px`), permitiendo visualizar muchas más fotografías simultáneamente al estar en la pestaña "Fotos" sin dejar espacios oscuros vacíos.
+  - **Miniaturas Fotográficas Ampliadas (64x64 px)**:
+    - Se aumentaron las dimensiones de las miniaturas de 44x44px a 64x64px con bordes redondeados y efecto hover con resplandor cian y zoom suave (`scale(1.05)`), facilitando la identificación visual de las tomas de expedición.
+  - **Conmutador de Modos de Visualización (Lista Detallada 📋 vs Cuadrícula Táctica 🔲)**:
+    - Se incorporaron botones interactivos `#btn-photos-view-list` y `#btn-photos-view-grid` en la cabecera de la sección de fotos.
+    - El modo **Cuadrícula Táctica (`.grid-view`)** organiza las fotografías en 2 columnas con tarjetas verticales y fotografías de 96px de altura, maximizando el aprovechamiento horizontal y vertical del panel lateral.
+  - **Contador Dinámico de Fotos en Cabecera**:
+    - Se añadió el badge reactivo `#photos-counter-badge` que indica en tiempo real la cantidad de fotografías cargadas en la expedición.
+  - **Clarificación de Estados de Coordenadas en Tarjetas**:
+    - Se eliminó el texto residual "Sin GPS directo", mostrando con total precisión el origen de la posición (`GPS EXIF`, `GPS XMP`, `Parada BiTaVi`, `Ruta GPS` o `Manual`) o la indicación interactiva de arrastrar la foto al mapa para geolocalizarla.
 
 ### `v1.1.8-alpha` (2026-10-22)
 - **Auto-Renderizado Inmediato de Rutas JSON, Selector de Carpeta Completa y Diagnóstico Táctico de Carga**:

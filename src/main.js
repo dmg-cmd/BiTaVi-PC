@@ -134,6 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Photo & Lightbox Elements
   const photosContainer = document.getElementById('photos-container');
   const photosList = document.getElementById('photos-list');
+  const photosCounterBadge = document.getElementById('photos-counter-badge');
+  const btnPhotosViewList = document.getElementById('btn-photos-view-list');
+  const btnPhotosViewGrid = document.getElementById('btn-photos-view-grid');
   const photoModal = document.getElementById('photo-modal');
   const modalClose = document.getElementById('modal-close');
   const modalBackdrop = document.getElementById('modal-backdrop');
@@ -2463,6 +2466,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Update Photos Gallery List in Sidebar
   function updatePhotosGallery(photos) {
+    if (photosCounterBadge) {
+      photosCounterBadge.textContent = photos ? photos.length : '0';
+    }
+
     if (!photos || photos.length === 0) {
       photosContainer.classList.remove('hidden');
       photosList.classList.add('hidden');
@@ -2489,7 +2496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     photos.forEach(photo => {
       const card = document.createElement('div');
       card.className = 'photo-card';
-      let coordsText = '📍 Sin GPS directo';
+      let coordsText = '';
       if (photo.lat !== null && photo.lng !== null && !isNaN(photo.lat) && !isNaN(photo.lng)) {
         let tag = '';
         const src = photo.geotagSource;
@@ -2535,6 +2542,21 @@ document.addEventListener('DOMContentLoaded', () => {
       buildPhotoRail();
       requestAnimationFrame(drawConnectors);
     }
+  }
+
+  // Controles de Vista de la Galería de Fotos (Lista vs Cuadrícula)
+  if (btnPhotosViewList && btnPhotosViewGrid && photosList) {
+    btnPhotosViewList.addEventListener('click', () => {
+      photosList.classList.remove('grid-view');
+      btnPhotosViewList.classList.add('active');
+      btnPhotosViewGrid.classList.remove('active');
+    });
+
+    btnPhotosViewGrid.addEventListener('click', () => {
+      photosList.classList.add('grid-view');
+      btnPhotosViewGrid.classList.add('active');
+      btnPhotosViewList.classList.remove('active');
+    });
   }
 
   // Fit and Clear Route buttons
