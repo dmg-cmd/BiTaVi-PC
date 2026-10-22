@@ -919,7 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Agrega rutas de forma incremental desde archivos GPX, KML o TXT
+  // Agrega rutas de forma incremental desde archivos GPX, ZIP, KML o TXT
   async function addNewRoutesFromFiles(files) {
     if (!files || files.length === 0) return;
     const fileList = Array.from(files);
@@ -927,84 +927,116 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       let addedCount = 0;
+      const pendingTextFiles = [];
+
+      const addParsedGpxTrack = (trk, fileName, lastModified) => {
+        if (!trk || !trk.points || trk.points.length === 0) return false;
+        const fileNameWithoutExt = (fileName || '').replace(/\.[^/.]+$/, '');
+        const routeName = trk.name || fileNameWithoutExt || `Ruta ${nativeParser.routes.length + 1}`;
+
+        let routeStartTime = trk.startTime || null;
+        let routeStartDate = trk.startDate || null;
+
+        if (!routeStartDate) {
+          const dateFromName = extractDateFromName(routeName) || extractDateFromName(fileName);
+          if (dateFromName) {
+            routeStartDate = dateFromName;
+            const d = new Date(`${dateFromName}T12:00:00Z`);
+            if (!isNaN(d.getTime())) routeStartTime = d.getTime();
+          }
+        }
+
+        if (!routeStartTime && lastModified) {
+          const d = new Date(lastModified);
+          if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+            routeStartTime = lastModified;
+            if (!routeStartDate) routeStartDate = d.toISOString().split('T')[0];
+          }
+        }
+
+        nativeParser.addRoute({
+          name: routeName,
+          startTime: routeStartTime,
+          startDate: routeStartDate,
+          fileName: fileName || null,
+          lastModified: lastModified || null
+        }, trk.points, true);
+        return true;
+      };
+
       for (let i = 0; i < fileList.length; i++) {
         const f = fileList[i];
+        const lowerName = f.name.toLowerCase();
         updateProgress(Math.round(20 + (i / fileList.length) * 70), `Leyendo ${f.name}...`, 'Interpretando coordenadas...');
 
-        if (f.name.toLowerCase().endsWith('.gpx')) {
+        if (lowerName.endsWith('.gpx')) {
           const text = await f.text();
-          const parsed = gpxHandler.parseGpxText(text);
-          if (parsed && parsed.points && parsed.points.length > 0) {
-            const fileNameWithoutExt = f.name.replace(/\.[^/.]+$/, '');
-            const routeName = parsed.name || fileNameWithoutExt || `Ruta ${nativeParser.routes.length + 1}`;
-            
-            let routeStartTime = parsed.startTime || null;
-            let routeStartDate = parsed.startDate || null;
-
-            if (!routeStartTime) {
-              const dateFromName = extractDateFromName(f.name);
-              if (dateFromName) {
-                routeStartDate = dateFromName;
-                const d = new Date(`${dateFromName}T12:00:00Z`);
-                if (!isNaN(d.getTime())) routeStartTime = d.getTime();
-              }
-            }
-
-            if (!routeStartTime && f.lastModified) {
-              const d = new Date(f.lastModified);
-              if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
-                routeStartTime = f.lastModified;
-                routeStartDate = d.toISOString().split('T')[0];
-              }
-            }
-
-            nativeParser.addRoute({
-              name: routeName,
-              startTime: routeStartTime,
-              startDate: routeStartDate,
-              fileName: f.name,
-              lastModified: f.lastModified || null
-            }, parsed.points, true);
-            addedCount++;
-          }
-        } else if (f.name.toLowerCase().endsWith('.zip')) {
-          const extracted = await zipHandler.processZipBackup(f);
-          if (extracted.gpxText) {
-            const parsed = gpxHandler.parseGpxText(extracted.gpxText);
-            if (parsed.points && parsed.points.length > 0) {
-              const fileNameWithoutExt = f.name.replace(/\.[^/.]+$/, '');
-              const routeName = parsed.name || fileNameWithoutExt || `Ruta ${nativeParser.routes.length + 1}`;
-              
-              let routeStartTime = parsed.startTime || null;
-              let routeStartDate = parsed.startDate || null;
-
-              if (!routeStartTime) {
-                const dateFromName = extractDateFromName(f.name);
-                if (dateFromName) {
-                  routeStartDate = dateFromName;
-                  const d = new Date(`${dateFromName}T12:00:00Z`);
-                  if (!isNaN(d.getTime())) routeStartTime = d.getTime();
-                }
-              }
-
-              if (!routeStartTime && f.lastModified) {
-                const d = new Date(f.lastModified);
-                if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
-                  routeStartTime = f.lastModified;
-                  routeStartDate = d.toISOString().split('T')[0];
-                }
-              }
-
-              nativeParser.addRoute({
-                name: routeName,
-                startTime: routeStartTime,
-                startDate: routeStartDate,
-                fileName: f.name,
-                lastModified: f.lastModified || null
-              }, parsed.points, true);
+          const tracks = typeof gpxHandler.parseGpxTracks === 'function'
+            ? gpxHandler.parseGpxTracks(text, f.name.replace(/\.[^/.]+$/, ''))
+            : [gpxHandler.parseGpxText(text)];
+          for (const trk of tracks) {
+            if (addParsedGpxTrack(trk, f.name, f.lastModified)) {
               addedCount++;
             }
           }
+        } else if (lowerName.endsWith('.zip')) {
+          const extracted = await zipHandler.processZipBackup(f);
+          const textFilesMap = new Map();
+          (extracted.textFiles || []).forEach(tf => {
+            const simpleName = tf.name.split('/').pop().toLowerCase();
+            textFilesMap.set(simpleName, tf.content);
+          });
+
+          if (textFilesMap.has('rutas.txt') || textFilesMap.has('puntos.txt')) {
+            const tempParser = new BiTaViNativeParser(mapInstance);
+            if (textFilesMap.has('rutas.txt')) tempParser.parseRoutes(textFilesMap.get('rutas.txt'));
+            if (textFilesMap.has('puntos.txt')) tempParser.parsePoints(textFilesMap.get('puntos.txt'));
+            tempParser.routes.forEach(r => {
+              const pts = tempParser.pointsByRoute.get(r.id);
+              if (pts && pts.length > 0) {
+                nativeParser.addRoute(r, pts, true);
+                addedCount++;
+              }
+            });
+          }
+
+          const gpxEntries = extracted.gpxFiles && extracted.gpxFiles.length > 0
+            ? extracted.gpxFiles
+            : (extracted.gpxText ? [{ name: extracted.gpxFileName || f.name, content: extracted.gpxText }] : []);
+
+          for (const gpxEntry of gpxEntries) {
+            const tracks = typeof gpxHandler.parseGpxTracks === 'function'
+              ? gpxHandler.parseGpxTracks(gpxEntry.content, gpxEntry.name.replace(/\.[^/.]+$/, ''))
+              : [gpxHandler.parseGpxText(gpxEntry.content)];
+            for (const trk of tracks) {
+              if (addParsedGpxTrack(trk, gpxEntry.name || f.name, f.lastModified)) {
+                addedCount++;
+              }
+            }
+          }
+        } else if (lowerName.endsWith('.txt')) {
+          pendingTextFiles.push(f);
+        }
+      }
+
+      if (pendingTextFiles.length > 0) {
+        const textFilesMap = new Map();
+        for (const tf of pendingTextFiles) {
+          const content = await tf.text();
+          const simpleName = tf.name.split('/').pop().toLowerCase();
+          textFilesMap.set(simpleName, content);
+        }
+        if (textFilesMap.has('rutas.txt') || textFilesMap.has('puntos.txt')) {
+          const tempParser = new BiTaViNativeParser(mapInstance);
+          if (textFilesMap.has('rutas.txt')) tempParser.parseRoutes(textFilesMap.get('rutas.txt'));
+          if (textFilesMap.has('puntos.txt')) tempParser.parsePoints(textFilesMap.get('puntos.txt'));
+          tempParser.routes.forEach(r => {
+            const pts = tempParser.pointsByRoute.get(r.id);
+            if (pts && pts.length > 0) {
+              nativeParser.addRoute(r, pts, true);
+              addedCount++;
+            }
+          });
         }
       }
 
@@ -2010,31 +2042,55 @@ document.addEventListener('DOMContentLoaded', () => {
            textFilesMap.set(simpleName, tf.content);
          });
 
-         if (textFilesMap.has('rutas.txt') || textFilesMap.has('puntos.txt') || textFilesMap.has('marcadores.txt') || textFilesMap.has('favoritos.txt')) {
+         const hasNativeFiles = textFilesMap.has('rutas.txt') || textFilesMap.has('puntos.txt') || textFilesMap.has('marcadores.txt') || textFilesMap.has('favoritos.txt');
+         if (hasNativeFiles) {
            const nativeStats = nativeParser.processNativeData(textFilesMap);
            currentRouteBounds = nativeParser.renderRoute('all');
 
-            populateRouteSelector(nativeStats.routes);
-            showRouteDate(nativeStats.routes);
+           populateRouteSelector(nativeStats.routes);
+           showRouteDate(nativeStats.routes);
 
-            const totalDistKm = nativeStats.routes.reduce((acc, r) => acc + parseFloat(r.distanceKm || 0), 0).toFixed(2);
+           const totalDistKm = nativeStats.routes.reduce((acc, r) => acc + parseFloat(r.distanceKm || 0), 0).toFixed(2);
            statDistance.textContent = `${totalDistKm} km`;
            statPoints.textContent = nativeStats.totalPoints.toLocaleString();
            statElevation.textContent = `${nativeStats.routesCount} r / ${nativeStats.markersCount + nativeStats.favoritesCount} m`;
            routeActions.classList.remove('hidden');
-         } 
-         else if (extracted.gpxText) {
-           const parsed = gpxHandler.parseGpxText(extracted.gpxText);
-           currentRouteBounds = gpxHandler.renderTrack(parsed);
+         }
 
-           statDistance.textContent = `${parsed.totalDistanceKm} km`;
-           statPoints.textContent = parsed.pointsCount;
-           if (parsed.minElevation !== null && parsed.maxElevation !== null) {
-             statElevation.textContent = `${parsed.minElevation} / ${parsed.maxElevation} m`;
-           } else {
-             statElevation.textContent = `N/D`;
+         const zipGpxEntries = (extracted.gpxFiles && extracted.gpxFiles.length > 0)
+           ? extracted.gpxFiles
+           : (extracted.gpxText ? [{ name: extracted.gpxFileName || zipFile.name, content: extracted.gpxText }] : []);
+
+         if (zipGpxEntries.length > 0 && !textFilesMap.has('rutas.txt')) {
+           if (!hasNativeFiles) {
+             nativeParser.clearAll();
            }
-           routeActions.classList.remove('hidden');
+           for (const gpxEntry of zipGpxEntries) {
+             const fallbackName = (gpxEntry.name || zipFile.name).replace(/\.[^/.]+$/, '');
+             const tracks = typeof gpxHandler.parseGpxTracks === 'function'
+               ? gpxHandler.parseGpxTracks(gpxEntry.content, fallbackName)
+               : [gpxHandler.parseGpxText(gpxEntry.content)];
+             for (const trk of tracks) {
+               if (trk && trk.points && trk.points.length > 0) {
+                 let routeStartDate = trk.startDate || extractDateFromName(trk.name) || extractDateFromName(gpxEntry.name) || extractDateFromName(zipFile.name) || null;
+                 let routeStartTime = trk.startTime || null;
+                 if (!routeStartTime && routeStartDate) {
+                   const d = new Date(`${routeStartDate}T12:00:00Z`);
+                   if (!isNaN(d.getTime())) routeStartTime = d.getTime();
+                 }
+                 nativeParser.addRoute({
+                   name: trk.name || fallbackName,
+                   startTime: routeStartTime,
+                   startDate: routeStartDate,
+                   fileName: gpxEntry.name || zipFile.name,
+                   lastModified: zipFile.lastModified || null
+                 }, trk.points, false);
+               }
+             }
+           }
+           currentRouteBounds = nativeParser.renderRoute('all');
+           populateRouteSelector(nativeParser.routes);
+           updateAllRouteStats();
          }
 
          if (extracted.imageFiles.length > 0) {

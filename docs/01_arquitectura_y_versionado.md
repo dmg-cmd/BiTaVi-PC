@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.0.10-alpha`
+- **Versión Actual**: `v1.1.0-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,14 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.0-alpha` (2026-10-22)
+- **Separación Real de Días en Rutas de Backups Android (`rutas.txt`), Fechas en Español y Extracción Masiva de GPX en ZIP**:
+  - **Priorización de Fecha Real en el Nombre de Ruta (`extractRouteDateSlug` y `parseRoutes`)**: En los backups de BiTaVi Android (`rutas.txt`), el campo numérico `startTime` registra el instante en que la base de datos SQLite reimportó las rutas (compartiendo todas el mismo día), mientras que la fecha real de cada excursión se conserva en el nombre de la ruta (`Auto-Ruta 2026-06-13 12:55`, `16 abr 2026 10:12:33`, `5 jun 2026 23:42:48`, `2026-06-14 09:23 Lancha hasta La Becasina`). Ahora `extractRouteDateSlug` y `parseRoutes` priorizan la fecha explícita del nombre antes del `startTime` genérico, separando cada ruta en su día real.
+  - **Reconocimiento de Meses en Español e Inglés (`extractDateFromName`)**: Soporte completo para fechas con nombres de meses abreviados o completos (`ene`, `feb`, `mar`, `abr`, `may`, `jun`, `jul`, `ago`, `sep`, `set`, `oct`, `nov`, `dic`, `16 de abril de 2026`, `5 jun. 2026`, etc.).
+  - **Extracción de Múltiples Archivos `.GPX` en Paquetes `.ZIP` (`zip-worker.js`, `zip-loader.js` y `main.js`)**: Cuando un archivo `.ZIP` contiene múltiples rutas `.gpx` (o un `.gpx` contiene múltiples `<trk>`/`<rte>`), se extraen e incorporan todas en `BiTaViNativeParser` y se despliega el panel de Gestión y Selección de Rutas (`populateRouteSelector`).
+  - **Carga Completa de Archivos de Telemetría en Carpeta Conectada (`folder-loader.js`)**: Al seleccionar `rutas.txt` o `puntos.txt` desde el modal de carpeta conectada o desde `[➕ Agregar Ruta]`, se vinculan automáticamente sus archivos hermanos para renderizar todas las rutas.
+  - **Hito de Versión Media (`1.1.0-alpha`)**: Al alcanzar `1.0.10-alpha`, conforme a la regla `X.Y.Z`, el dígito medio incrementa a `1` y el derecho vuelve a `0`.
 
 ### `v1.0.10-alpha` (2026-10-22)
 - **Corrección Crítica de Agrupación por Día y Extracción de Metadatos en GPX Masivos**:

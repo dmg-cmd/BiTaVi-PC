@@ -69,6 +69,7 @@ export class ZipBackupHandler {
             fileSizeMb: rawResult.fileSizeMb,
             gpxText: rawResult.gpxText,
             gpxFileName: rawResult.gpxFileName,
+            gpxFiles: rawResult.gpxFiles || (rawResult.gpxText ? [{ name: rawResult.gpxFileName || 'ruta.gpx', content: rawResult.gpxText }] : []),
             imageFiles,
             metadata: rawResult.metadata,
             textFiles: rawResult.textFiles,
@@ -109,6 +110,7 @@ export class ZipBackupHandler {
 
     let gpxText = null;
     let gpxFileName = null;
+    const gpxFiles = [];
     const imageFiles = [];
     let metadata = null;
     const textFiles = [];
@@ -144,13 +146,16 @@ export class ZipBackupHandler {
 
       if (lowerName.endsWith('.gpx')) {
         category = 'Ruta GPX';
-        if (!gpxText) {
-          try {
-            gpxText = await entry.async('string');
-            gpxFileName = filename.split('/').pop();
-          } catch (e) {
-            console.warn('[ZipLoader] No se pudo extraer GPX', filename, e.message);
+        try {
+          const content = await entry.async('string');
+          const cleanGpxName = filename.split('/').pop();
+          gpxFiles.push({ name: cleanGpxName, path: filename, content });
+          if (!gpxText) {
+            gpxText = content;
+            gpxFileName = cleanGpxName;
           }
+        } catch (e) {
+          console.warn('[ZipLoader] No se pudo extraer GPX', filename, e.message);
         }
       } else if (
         lowerName.endsWith('.jpg') ||
@@ -224,6 +229,7 @@ export class ZipBackupHandler {
       fileSizeMb: (zipFile.size / (1024 * 1024)).toFixed(2),
       gpxText,
       gpxFileName,
+      gpxFiles,
       imageFiles,
       metadata,
       textFiles,

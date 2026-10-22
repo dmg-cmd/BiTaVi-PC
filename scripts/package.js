@@ -96,16 +96,31 @@ async function buildPackages() {
   console.log(`   -> Paquete Linux creado: release/BiTaVi-PC-v${version}-Linux.zip (${(linuxBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
 
   // 4. Copiar ejecutables nativos de Tauri si existen
-  console.log('\n4. Verificando binarios ejecutables nativos...');
+  console.log('\n4. Compilando y verificando binarios ejecutables nativos de Tauri...');
+  try {
+    const cargoBin = path.join(process.env.USERPROFILE || '', '.cargo', 'bin');
+    const envWithCargo = {
+      ...process.env,
+      PATH: cargoBin ? `${cargoBin}${path.delimiter}${process.env.PATH}` : process.env.PATH
+    };
+    execSync('npx tauri build', { cwd: ROOT, stdio: 'inherit', env: envWithCargo });
+  } catch (e) {
+    console.warn('   [AVISO] No se pudo recompilar Tauri automaticamente, usando binarios existentes si estan disponibles:', e.message);
+  }
+
   const nsisDir = path.join(ROOT, 'src-tauri', 'target', 'release', 'bundle', 'nsis');
   if (fs.existsSync(nsisDir)) {
-    const files = fs.readdirSync(nsisDir).filter(f => f.endsWith('.exe'));
-    for (const f of files) {
-      const srcFile = path.join(nsisDir, f);
-      const destFile = path.join(releaseDir, f);
+    const files = fs.readdirSync(nsisDir)
+      .filter(f => f.endsWith('.exe'))
+      .map(f => ({ name: f, mtime: fs.statSync(path.join(nsisDir, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    if (files.length > 0) {
+      const latestSetup = files[0].name;
+      const srcFile = path.join(nsisDir, latestSetup);
+      const destFile = path.join(releaseDir, `BiTaVi-v${version}-setup.exe`);
       fs.copyFileSync(srcFile, destFile);
       const sizeMb = (fs.statSync(destFile).size / 1024 / 1024).toFixed(2);
-      console.log(`   -> Ejecutable de instalacion copiado: release/${f} (${sizeMb} MB)`);
+      console.log(`   -> Ejecutable de instalacion copiado: release/BiTaVi-v${version}-setup.exe (${sizeMb} MB)`);
     }
   }
 

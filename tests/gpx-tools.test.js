@@ -149,4 +149,60 @@ describe('Herramientas GPX y Saneamiento de Archivos (gpx-parser.js)', () => {
     expect(grouped.has('2024-05-03')).toBe(true);
     expect(grouped.get('2024-05-01').length + grouped.get('2024-05-02').length + grouped.get('2024-05-03').length).toBe(81);
   });
+
+  it('extractDateFromName y groupRoutesByDay separan rutas reales de rutas.txt con meses en español aunque compartan startTime de reimportación', () => {
+    expect(extractDateFromName('16 abr 2026 10:12:33')).toBe('2026-04-16');
+    expect(extractDateFromName('5 jun 2026 23:42:48')).toBe('2026-06-05');
+    expect(extractDateFromName('Auto-Ruta 2026-06-13 12:55')).toBe('2026-06-13');
+    expect(extractDateFromName('2026-06-14 09:23 Lancha hasta La Becasina')).toBe('2026-06-14');
+
+    // Simulación exacta de rutas.txt donde todas tienen startTime del mismo día de importación (1782404078xxx)
+    const routesFromBackup = [
+      { id: '1', name: 'Auto-Ruta 2026-06-13 12:55', startTime: 1782404078536 },
+      { id: '2', name: '16 abr 2026 10:12:33', startTime: 1782404077751 },
+      { id: '3', name: '5 jun 2026 23:42:48', startTime: 1782404077565 },
+      { id: '4', name: '2026-06-10 10:16', startTime: 1782404077445 },
+      { id: '5', name: '2026-06-10 16:42 - Buenos Aires', startTime: 1782404077297 },
+      { id: '6', name: '2026-06-11 09:55 Chi kung', startTime: 1782404077271 },
+      { id: '7', name: '2026-06-14 07:04 - Buenos Aires', startTime: 1782404077206 },
+      { id: '8', name: '2026-06-14 09:23 Lancha hasta La Becasina', startTime: 1782404077137 }
+    ];
+
+    const grouped = groupRoutesByDay(routesFromBackup);
+    expect(grouped.size).toBe(6);
+    expect(grouped.has('2026-04-16')).toBe(true);
+    expect(grouped.has('2026-06-05')).toBe(true);
+    expect(grouped.has('2026-06-10')).toBe(true);
+    expect(grouped.get('2026-06-10').length).toBe(2);
+    expect(grouped.has('2026-06-11')).toBe(true);
+    expect(grouped.has('2026-06-13')).toBe(true);
+    expect(grouped.has('2026-06-14')).toBe(true);
+    expect(grouped.get('2026-06-14').length).toBe(2);
+  });
+
+  it('GpxHandler.parseGpxTracks extrae múltiples tracks independientes de un mismo archivo GPX', () => {
+    const handler = new GpxHandler(null);
+    const multiGpx = `<?xml version="1.0" encoding="UTF-8"?>
+      <gpx version="1.1">
+        <trk>
+          <name>Tramo 2026-06-10</name>
+          <trkseg>
+            <trkpt lat="-34.60" lon="-58.38"><ele>10</ele></trkpt>
+          </trkseg>
+        </trk>
+        <trk>
+          <name>Tramo 16 abr 2026</name>
+          <trkseg>
+            <trkpt lat="-34.62" lon="-58.40"><ele>15</ele></trkpt>
+          </trkseg>
+        </trk>
+      </gpx>`;
+
+    const tracks = handler.parseGpxTracks(multiGpx, 'Expedicion');
+    expect(tracks.length).toBe(2);
+    expect(tracks[0].name).toBe('Tramo 2026-06-10');
+    expect(tracks[0].startDate).toBe('2026-06-10');
+    expect(tracks[1].name).toBe('Tramo 16 abr 2026');
+    expect(tracks[1].startDate).toBe('2026-04-16');
+  });
 });

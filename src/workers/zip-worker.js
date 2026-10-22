@@ -27,6 +27,7 @@ self.onmessage = async (e) => {
 
     let gpxText = null;
     let gpxFileName = null;
+    const gpxFiles = [];
     let metadata = null;
     const textFiles = [];
     const folders = [];
@@ -62,13 +63,16 @@ self.onmessage = async (e) => {
 
       if (lowerName.endsWith('.gpx')) {
         category = 'Ruta GPX';
-        if (!gpxText) {
-          try {
-            gpxText = await entry.async('string');
-            gpxFileName = filename.split('/').pop();
-          } catch (err) {
-            // Ignorar archivo corrupto
+        try {
+          const content = await entry.async('string');
+          const cleanGpxName = filename.split('/').pop();
+          gpxFiles.push({ name: cleanGpxName, path: filename, content });
+          if (!gpxText) {
+            gpxText = content;
+            gpxFileName = cleanGpxName;
           }
+        } catch (err) {
+          // Ignorar archivo corrupto
         }
       } else if (
         lowerName.endsWith('.jpg') ||
@@ -151,6 +155,7 @@ self.onmessage = async (e) => {
           fileSizeMb: (fileSize / (1024 * 1024)).toFixed(2),
           gpxText,
           gpxFileName,
+          gpxFiles,
           images,
           metadata,
           textFiles,

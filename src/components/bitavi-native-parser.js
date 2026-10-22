@@ -1,9 +1,9 @@
 import L from 'leaflet';
-import { createGpxXml } from './gpx-parser.js';
+import { createGpxXml, extractDateFromName } from './gpx-parser.js';
 
 /**
  * Parsea timestamps flexibles en formatos: milisegundos (>1e10), segundos Unix (1e9..1e10),
- * cadenas ISO o formatos de fecha humanos (DD/MM/YYYY, YYYY-MM-DD, etc.).
+ * cadenas ISO o formatos de fecha humanos (DD/MM/YYYY, YYYY-MM-DD, "16 abr 2026 10:12:33", etc.).
  * @param {string|number} val
  * @returns {number|null} Timestamp en milisegundos o null si no es válido
  */
@@ -36,6 +36,17 @@ export function parseFlexibleTimestamp(val) {
       const parsedD = new Date(year, month, day, hour, min, sec);
       if (!isNaN(parsedD.getTime())) {
         return parsedD.getTime();
+      }
+    }
+    const slug = extractDateFromName(trimmed);
+    if (slug) {
+      const timeMatch = trimmed.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      const hh = timeMatch ? timeMatch[1].padStart(2, '0') : '12';
+      const mm = timeMatch ? timeMatch[2].padStart(2, '0') : '00';
+      const ss = timeMatch && timeMatch[3] ? timeMatch[3].padStart(2, '0') : '00';
+      const isoD = new Date(`${slug}T${hh}:${mm}:${ss}Z`);
+      if (!isNaN(isoD.getTime())) {
+        return isoD.getTime();
       }
     }
   }
@@ -156,7 +167,7 @@ export class BiTaViNativeParser {
       const parts = line.split('|');
       const id = parts[0];
       const name = parts[1] || `Ruta ${id}`;
-      const startTime = parseFlexibleTimestamp(parts[2]);
+      let startTime = parseFlexibleTimestamp(parts[2]);
       const endTime = parseFlexibleTimestamp(parts[3]);
       const distanceM = parts[4] ? parseFloat(parts[4]) : 0;
       const maxSpeed = parts[5] ? parseFloat(parts[5]) : 0;
@@ -166,12 +177,27 @@ export class BiTaViNativeParser {
         ? Math.round((endTime - startTime) / 60000) 
         : 0;
 
+      // Si el nombre de la ruta contiene la fecha real (ej: "Auto-Ruta 2026-06-13 12:55" o "16 abr 2026 10:12:33"),
+      // priorizar esa fecha sobre timestamps de reimportación de base de datos SQLite en Android
+      const nameDateSlug = extractDateFromName(name);
+      let startDate = startTime ? new Date(startTime).toLocaleString() : 'Fecha N/D';
+      if (nameDateSlug) {
+        const nameTs = parseFlexibleTimestamp(name);
+        const startIso = startTime ? new Date(startTime).toISOString().split('T')[0] : null;
+        if (!startIso || startIso !== nameDateSlug) {
+          startDate = nameDateSlug;
+          if (nameTs) {
+            startTime = nameTs;
+          }
+        }
+      }
+
       return {
         id,
         name,
         startTime,
         endTime,
-        startDate: startTime ? new Date(startTime).toLocaleString() : 'Fecha N/D',
+        startDate,
         distanceKm: (distanceM / 1000).toFixed(2),
         distanceM: Math.round(distanceM),
         maxSpeed: maxSpeed.toFixed(1),

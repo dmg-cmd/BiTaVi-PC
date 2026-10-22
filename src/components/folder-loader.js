@@ -513,13 +513,37 @@ export class FolderBackupLoader {
    */
   async getBackupPayload(backupItem) {
     if (!backupItem) return [];
-    if (backupItem.type === 'zip' || backupItem.type === 'gpx') {
+    if (backupItem.type === 'zip' || backupItem.type === 'gpx' || backupItem.type === 'geo' || backupItem.type === 'photo') {
       const file = typeof backupItem.getFile === 'function' ? await backupItem.getFile() : backupItem.file;
-      return [file];
+      return file ? [file] : [];
+    } else if (backupItem.type === 'text') {
+      // Si el usuario selecciona rutas.txt o puntos.txt en el modal de carpeta,
+      // reunir todos los archivos de telemetría (.txt) e imágenes hermanos de la misma subcarpeta
+      const dirPrefix = backupItem.relPath && backupItem.relPath.includes('/')
+        ? backupItem.relPath.slice(0, backupItem.relPath.lastIndexOf('/') + 1)
+        : '';
+      const relatedItems = (this.cachedBackups || []).filter(item => {
+        if (item.type !== 'text' && item.type !== 'photo') return false;
+        const itemDir = item.relPath && item.relPath.includes('/')
+          ? item.relPath.slice(0, item.relPath.lastIndexOf('/') + 1)
+          : '';
+        return itemDir === dirPrefix;
+      });
+      if (relatedItems.length > 0) {
+        const files = [];
+        for (const rel of relatedItems) {
+          const f = typeof rel.getFile === 'function' ? await rel.getFile() : rel.file;
+          if (f) files.push(f);
+        }
+        return files;
+      }
+      const file = typeof backupItem.getFile === 'function' ? await backupItem.getFile() : backupItem.file;
+      return file ? [file] : [];
     } else if (backupItem.type === 'folder') {
       const files = typeof backupItem.getFiles === 'function' ? await backupItem.getFiles() : backupItem.files;
       return files || [];
     }
-    return [];
+    const file = typeof backupItem.getFile === 'function' ? await backupItem.getFile() : backupItem.file;
+    return file ? [file] : [];
   }
 }

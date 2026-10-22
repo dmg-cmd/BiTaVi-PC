@@ -123,6 +123,135 @@ export class GpxHandler {
     };
   }
 
+  /**
+   * Extrae una o múltiples rutas desde un texto GPX (soporta múltiples <trk> o <rte>).
+   * @param {string} gpxText
+   * @param {string} fallbackName
+   * @returns {Array<{name: string, startTime: number|null, startDate: string|null, points: Array, waypoints: Array}>}
+   */
+  parseGpxTracks(gpxText, fallbackName = 'Ruta GPX') {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(gpxText, 'text/xml');
+    const parseError = xmlDoc.getElementsByTagName('parsererror');
+    if (parseError.length > 0) {
+      throw new Error('Error al interpretar el archivo GPX');
+    }
+
+    const metaTimeEl = xmlDoc.querySelector('metadata > time');
+    const metaTimeStr = metaTimeEl && metaTimeEl.textContent ? metaTimeEl.textContent.trim() : null;
+    const metaNameEl = xmlDoc.querySelector('metadata > name');
+    const metaNameStr = metaNameEl && metaNameEl.textContent ? metaNameEl.textContent.trim() : null;
+
+    const waypoints = [];
+    const wpts = xmlDoc.getElementsByTagName('wpt');
+    for (let i = 0; i < wpts.length; i++) {
+      const wpt = wpts[i];
+      const lat = parseFloat(wpt.getAttribute('lat'));
+      const lon = parseFloat(wpt.getAttribute('lon'));
+      const nameEl = wpt.getElementsByTagName('name')[0];
+      const name = nameEl ? nameEl.textContent : `Punto ${i + 1}`;
+      if (!isNaN(lat) && !isNaN(lon)) {
+        waypoints.push({ lat, lng: lon, name });
+      }
+    }
+
+    const results = [];
+    let containers = Array.from(xmlDoc.getElementsByTagName('trk'));
+    let ptTagName = 'trkpt';
+    if (containers.length === 0) {
+      containers = Array.from(xmlDoc.getElementsByTagName('rte'));
+      ptTagName = 'rtept';
+    }
+
+    if (containers.length === 0) {
+      const single = this.parseGpxText(gpxText);
+      if (single && single.points && single.points.length > 0) {
+        return [{
+          name: single.name || fallbackName,
+          startTime: single.startTime,
+          startDate: single.startDate,
+          points: single.points,
+          waypoints: single.waypoints || []
+        }];
+      }
+      return [];
+    }
+
+    containers.forEach((trkEl, idx) => {
+      const ptsEls = trkEl.getElementsByTagName(ptTagName);
+      const pts = [];
+      for (let i = 0; i < ptsEls.length; i++) {
+        const pt = ptsEls[i];
+        const lat = parseFloat(pt.getAttribute('lat'));
+        const lon = parseFloat(pt.getAttribute('lon'));
+        const eleEl = pt.getElementsByTagName('ele')[0];
+        const ele = eleEl ? parseFloat(eleEl.textContent) : null;
+        const timeEl = pt.getElementsByTagName('time')[0];
+        const time = timeEl ? timeEl.textContent.trim() : null;
+        if (!isNaN(lat) && !isNaN(lon)) {
+          pts.push({ lat, lng: lon, ele, time });
+        }
+      }
+
+      if (pts.length === 0) return;
+
+      const trkNameEl = trkEl.querySelector(':scope > name') || trkEl.getElementsByTagName('name')[0];
+      const rawName = (trkNameEl && trkNameEl.textContent) ? trkNameEl.textContent.trim() : null;
+      const name = rawName || (containers.length === 1 ? (metaNameStr || fallbackName) : `${metaNameStr || fallbackName} (${idx + 1})`);
+
+      const trkTimeEl = trkEl.querySelector(':scope > time');
+      let trackTime = (trkTimeEl && trkTimeEl.textContent) ? trkTimeEl.textContent.trim() : null;
+      if (!trackTime) {
+        const firstWithTime = pts.find(p => p.time);
+        if (firstWithTime) trackTime = firstWithTime.time;
+      }
+      if (!trackTime && metaTimeStr) {
+        trackTime = metaTimeStr;
+      }
+
+      let startTime = null;
+      let startDate = null;
+      if (trackTime) {
+        const parsedTime = parseFlexibleTimestamp(trackTime);
+        if (parsedTime) {
+          startTime = parsedTime;
+          const d = new Date(startTime);
+          if (!isNaN(d.getTime())) {
+            startDate = d.toISOString().split('T')[0];
+          }
+        } else {
+          const fromName = extractDateFromName(trackTime);
+          if (fromName) {
+            startDate = fromName;
+            const d = new Date(`${fromName}T12:00:00Z`);
+            if (!isNaN(d.getTime())) startTime = d.getTime();
+          }
+        }
+      }
+
+      if (!startDate) {
+        const fromTrackName = extractDateFromName(name) || extractDateFromName(fallbackName);
+        if (fromTrackName) {
+          startDate = fromTrackName;
+          if (!startTime) {
+            const d = new Date(`${fromTrackName}T12:00:00Z`);
+            if (!isNaN(d.getTime())) startTime = d.getTime();
+          }
+        }
+      }
+
+      results.push({
+        name,
+        startTime,
+        startDate,
+        points: pts,
+        waypoints: idx === 0 ? waypoints : []
+      });
+    });
+
+    return results;
+  }
+
   renderTrack(parsedData) {
     this.clearTrack();
 
@@ -345,9 +474,25 @@ ${trksegsXml}  </trk>
 </gpx>`;
 }
 
+const MONTH_NAME_MAP = {
+  ene: '01', enero: '01', jan: '01', january: '01',
+  feb: '02', febrero: '02', february: '02',
+  mar: '03', marzo: '03', march: '03',
+  abr: '04', abril: '04', apr: '04', april: '04',
+  may: '05', mayo: '05',
+  jun: '06', junio: '06', june: '06',
+  jul: '07', julio: '07', july: '07',
+  ago: '08', agosto: '08', aug: '08', august: '08',
+  sep: '09', set: '09', sept: '09', septiembre: '09', setiembre: '09', september: '09',
+  oct: '10', octubre: '10', october: '10',
+  nov: '11', noviembre: '11', november: '11',
+  dic: '12', diciembre: '12', dec: '12', december: '12'
+};
+
 /**
  * Extrae una fecha en formato YYYY-MM-DD a partir de un texto (nombre de ruta, archivo o cadena de fecha).
- * Soporta YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD, DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYYMMDD y DDMMYYYY.
+ * Soporta YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD, DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY,
+ * fechas con meses en texto ("16 abr 2026", "5 jun 2026", "16 de abril de 2026"), YYYYMMDD y DDMMYYYY.
  * @param {string} text
  * @returns {string|null}
  */
@@ -380,7 +525,33 @@ export function extractDateFromName(text) {
     }
   }
 
-  // 3. Formato compacto YYYYMMDD (ej: backup_20260626, 20260626_2305)
+  // 3. Formato con nombre de mes en español/inglés: "16 abr 2026", "5 jun. 2026", "16 de abril de 2026"
+  const mTextMonthDmy = text.match(/(?:^|[^0-9])([0-3]?\d)\s*(?:de\s+|[-/._]\s*)?([a-zA-Záéíóúñ]{3,10})\.?\s*(?:de\s+|[-/._,]\s*)?(20\d{2})(?:[^0-9]|$)/i);
+  if (mTextMonthDmy) {
+    const d = mTextMonthDmy[1].padStart(2, '0');
+    const mKey = mTextMonthDmy[2].toLowerCase();
+    const y = mTextMonthDmy[3];
+    const m = MONTH_NAME_MAP[mKey] || MONTH_NAME_MAP[mKey.slice(0, 3)];
+    const dNum = parseInt(d, 10);
+    if (m && dNum >= 1 && dNum <= 31) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // 4. Formato mes en texto primero: "abr 16, 2026" o "jun 5 2026"
+  const mTextMonthMdy = text.match(/(?:^|[^a-zA-Z])([a-zA-Záéíóúñ]{3,10})\.?\s+([0-3]?\d)(?:,|\s+de)?\s+(20\d{2})(?:[^0-9]|$)/i);
+  if (mTextMonthMdy) {
+    const mKey = mTextMonthMdy[1].toLowerCase();
+    const d = mTextMonthMdy[2].padStart(2, '0');
+    const y = mTextMonthMdy[3];
+    const m = MONTH_NAME_MAP[mKey] || MONTH_NAME_MAP[mKey.slice(0, 3)];
+    const dNum = parseInt(d, 10);
+    if (m && dNum >= 1 && dNum <= 31) {
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // 5. Formato compacto YYYYMMDD (ej: backup_20260626, 20260626_2305)
   const mCompactYmd = text.match(/(?:^|[^0-9])(20\d{2})([01]\d)([0-3]\d)(?:[^0-9]|$)/);
   if (mCompactYmd) {
     const y = mCompactYmd[1];
@@ -393,7 +564,7 @@ export function extractDateFromName(text) {
     }
   }
 
-  // 4. Formato compacto DDMMYYYY (ej: ruta_26062026)
+  // 6. Formato compacto DDMMYYYY (ej: ruta_26062026)
   const mCompactDmy = text.match(/(?:^|[^0-9])([0-3]\d)([01]\d)(20\d{2})(?:[^0-9]|$)/);
   if (mCompactDmy) {
     const d = mCompactDmy[1];
@@ -411,28 +582,31 @@ export function extractDateFromName(text) {
 
 /**
  * Extrae una cadena de fecha limpia en formato YYYY-MM-DD para nombrar archivos y agrupar rutas.
- * Prioriza: startTime de la ruta -> puntos GPS con time/timestamp -> nombre de la ruta -> id -> 'Sin Fecha'.
+ * Prioriza:
+ * 1) Fecha explícita en el nombre de la ruta (ej: "Auto-Ruta 2026-06-13 12:55", "16 abr 2026 10:12:33")
+ * 2) Fecha explícita en el nombre del archivo (route.fileName)
+ * 3) Puntos GPS con time/timestamp válido (> 0)
+ * 4) startTime / startDate de la ruta
+ * 5) lastModified / id -> 'Sin Fecha'
  * @param {object} route
  * @param {Array<object>} points
  * @returns {string} Fecha en formato YYYY-MM-DD o 'Sin Fecha'
  */
 export function extractRouteDateSlug(route, points = []) {
-  // 1. Probar startTime de la ruta
-  if (route && route.startTime) {
-    const num = Number(route.startTime);
-    if (!isNaN(num) && num > 0) {
-      const ms = (num > 1000000000 && num < 10000000000) ? num * 1000 : num;
-      const d = new Date(ms);
-      if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
-        return d.toISOString().split('T')[0];
-      }
-    } else if (typeof route.startTime === 'string') {
-      const fromStr = extractDateFromName(route.startTime);
-      if (fromStr) return fromStr;
-    }
+  // 1. Priorizar fecha explícita escrita en el nombre de la ruta (en BiTaVi Android el nombre conserva
+  //    la fecha real del recorrido incluso cuando SQLite reasigna startTime al restaurar un backup)
+  if (route && route.name) {
+    const fromName = extractDateFromName(route.name);
+    if (fromName) return fromName;
   }
 
-  // 2. Probar puntos de la ruta (examinar los primeros 30 puntos por si alguno tiene fecha)
+  // 2. Probar route.fileName si existe y tiene fecha en el nombre del archivo
+  if (route && route.fileName) {
+    const fromFile = extractDateFromName(route.fileName);
+    if (fromFile) return fromFile;
+  }
+
+  // 3. Probar puntos de la ruta (examinar los primeros 30 puntos por si alguno tiene fecha real > 0)
   if (points && points.length > 0) {
     const maxScan = Math.min(points.length, 30);
     for (let i = 0; i < maxScan; i++) {
@@ -458,22 +632,25 @@ export function extractRouteDateSlug(route, points = []) {
     }
   }
 
-  // 3. Probar nombre de la ruta (ej: "26/06/2026", "backup_20260626", "Ruta 26-06-2026")
-  if (route && route.name) {
-    const fromName = extractDateFromName(route.name);
-    if (fromName) return fromName;
+  // 4. Probar startTime de la ruta
+  if (route && route.startTime) {
+    const num = Number(route.startTime);
+    if (!isNaN(num) && num > 0) {
+      const ms = (num > 1000000000 && num < 10000000000) ? num * 1000 : num;
+      const d = new Date(ms);
+      if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+        return d.toISOString().split('T')[0];
+      }
+    } else if (typeof route.startTime === 'string') {
+      const fromStr = extractDateFromName(route.startTime);
+      if (fromStr) return fromStr;
+    }
   }
 
-  // 4. Probar route.startDate si existe y no es 'Fecha N/D'
+  // 5. Probar route.startDate si existe y no es 'Fecha N/D'
   if (route && route.startDate && route.startDate !== 'Fecha N/D') {
     const fromStart = extractDateFromName(route.startDate);
     if (fromStart) return fromStart;
-  }
-
-  // 5. Probar route.fileName si existe
-  if (route && route.fileName) {
-    const fromFile = extractDateFromName(route.fileName);
-    if (fromFile) return fromFile;
   }
 
   // 6. Probar route.lastModified si existe
@@ -502,7 +679,7 @@ export function extractRouteDateSlug(route, points = []) {
     }
   }
 
-  // 6. Si no tiene fecha detectable, clasificar como 'Sin Fecha' (no asignar fecha de hoy)
+  // 8. Si no tiene fecha detectable, clasificar como 'Sin Fecha' (no asignar fecha de hoy)
   return 'Sin Fecha';
 }
 
