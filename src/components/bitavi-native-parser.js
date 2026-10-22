@@ -271,6 +271,254 @@ export class BiTaViNativeParser {
    * { nombreDeFoto -> { lat, lng } }
    * Útil para posicionar fotos que no tienen EXIF GPS pero sí un favorito/parada asociado.
    */
+  /**
+   * Interpreta datos en formato JSON / GeoJSON de forma universal y robusta
+   * @param {string|object} jsonContent
+   * @param {string} fallbackName
+   * @returns {boolean} true si se encontraron rutas, waypoints o puntos
+   */
+  parseJsonData(jsonContent, fallbackName = 'Ruta JSON') {
+    let data;
+    if (typeof jsonContent === 'string') {
+      try {
+        data = JSON.parse(jsonContent);
+      } catch (e) {
+        console.warn('[BiTaVi] JSON no válido:', e);
+        return false;
+      }
+    } else {
+      data = jsonContent;
+    }
+
+    if (!data) return false;
+    let added = false;
+
+    // Caso A: GeoJSON estándar (FeatureCollection, Feature o Geometry con coordinates)
+    if (data.type === 'FeatureCollection' || data.type === 'Feature' || data.coordinates) {
+      return this.parseGeoJson(data, fallbackName);
+    }
+
+    // Caso B: Objeto de backup unificado con rutas y puntos
+    const routesList = data.routes || data.rutas || data.tracks || data.recorridos;
+    const pointsList = data.points || data.puntos || data.coordenadas;
+    const markersList = data.markers || data.marcadores || data.waypoints;
+    const favoritesList = data.favorites || data.favoritos || data.paradas;
+
+    // B1: Rutas con puntos embebidos adentro de cada objeto ruta
+    if (Array.isArray(routesList)) {
+      routesList.forEach((r, idx) => {
+        const routeId = String(r.id || idx + 1);
+        const name = r.name || r.nombre || `${fallbackName} ${idx + 1}`;
+        const pts = r.points || r.puntos || r.coordinates || r.coordenadas || r.latLngs || [];
+        const parsedPoints = this._normalizePointsArray(pts);
+
+        if (parsedPoints.length > 0) {
+          this.addRoute({
+            id: routeId,
+            name,
+            startTime: r.startTime || r.time || parseFlexibleTimestamp(r.startDate || name) || null,
+            startDate: r.startDate || r.fecha || extractDateFromName(name) || null
+          }, parsedPoints, false);
+          added = true;
+        }
+      });
+    }
+
+    // B2: Puntos en lista plana que tienen routeId o son una sola traza
+    if (Array.isArray(pointsList) && (!routesList || routesList.length === 0)) {
+      const ptsByRoute = new Map();
+      pointsList.forEach(pt => {
+        const rId = String(pt.routeId || pt.route_id || pt.id_ruta || pt.route || '1');
+        if (!ptsByRoute.has(rId)) ptsByRoute.set(rId, []);
+        ptsByRoute.get(rId).push(pt);
+      });
+
+      ptsByRoute.forEach((pts, rId) => {
+        const parsedPoints = this._normalizePointsArray(pts);
+        if (parsedPoints.length > 0) {
+          const rName = `${fallbackName}${ptsByRoute.size > 1 ? ` (Tramo ${rId})` : ''}`;
+          this.addRoute({
+            id: rId,
+            name: rName,
+            startDate: extractDateFromName(rName) || null
+          }, parsedPoints, false);
+          added = true;
+        }
+      });
+    }
+
+    // B3: Marcadores y Favoritos en JSON
+    if (Array.isArray(markersList)) {
+      markersList.forEach((m, idx) => {
+        const lat = parseFloat(m.lat || m.latitude || m.latitud);
+        const lng = parseFloat(m.lng || m.lon || m.longitude || m.longitud);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          this.markers.push({
+            id: String(m.id || `marker-${Date.now()}-${idx}`),
+            name: m.name || m.nombre || 'Marcador',
+            desc: m.desc || m.descripcion || '',
+            lat,
+            lng,
+            color: m.color || '#2196F3'
+          });
+          added = true;
+        }
+      });
+    }
+
+    if (Array.isArray(favoritesList)) {
+      favoritesList.forEach(f => {
+        const lat = parseFloat(f.lat || f.latitude || f.latitud);
+        const lng = parseFloat(f.lng || f.lon || f.longitude || f.longitud);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          this.favorites.push({
+            name: f.name || f.nombre || 'Favorito',
+            address: f.address || f.direccion || '',
+            lat,
+            lng,
+            desc: f.desc || '',
+            type: f.type || 'Punto',
+            color: f.color || '#FFD700',
+            photoUrl: f.photoUrl || f.photo || f.foto || '',
+            photoFile: f.photoFile || null
+          });
+          added = true;
+        }
+      });
+    }
+
+    // Caso C: Array plano de coordenadas directas [ [lat, lng], ... ] o [ {lat, lng}, ... ]
+    if (!added && Array.isArray(data)) {
+      const parsedPoints = this._normalizePointsArray(data);
+      if (parsedPoints.length > 0) {
+        this.addRoute({
+          name: fallbackName,
+          startDate: extractDateFromName(fallbackName) || null
+        }, parsedPoints, false);
+        added = true;
+      }
+    }
+
+    if (added) {
+      this.renderMarkersAndFavorites();
+    }
+
+    return added;
+  }
+
+  /**
+   * Interpreta objetos GeoJSON (FeatureCollection, Feature, LineString, MultiLineString, Point)
+   */
+  parseGeoJson(geoJson, fallbackName = 'GeoJSON') {
+    let added = false;
+    const features = geoJson.type === 'FeatureCollection'
+      ? geoJson.features
+      : (geoJson.type === 'Feature' ? [geoJson] : [{ geometry: geoJson, properties: {} }]);
+
+    if (!features || !Array.isArray(features)) return false;
+
+    features.forEach((feat, idx) => {
+      const geom = feat.geometry || feat;
+      const props = feat.properties || {};
+      const featName = props.name || props.title || props.id || `${fallbackName}${features.length > 1 ? ` ${idx + 1}` : ''}`;
+
+      if (geom.type === 'LineString') {
+        const coords = geom.coordinates || [];
+        const points = coords.map(c => ({
+          lng: parseFloat(c[0]),
+          lat: parseFloat(c[1]),
+          ele: c[2] !== undefined ? parseFloat(c[2]) : null
+        })).filter(p => !isNaN(p.lat) && !isNaN(p.lng));
+
+        if (points.length > 0) {
+          this.addRoute({
+            name: featName,
+            startDate: props.date || props.time || extractDateFromName(featName) || null,
+            startTime: props.timestamp || null
+          }, points, false);
+          added = true;
+        }
+      } else if (geom.type === 'MultiLineString') {
+        const multiCoords = geom.coordinates || [];
+        multiCoords.forEach((coords, partIdx) => {
+          const points = coords.map(c => ({
+            lng: parseFloat(c[0]),
+            lat: parseFloat(c[1]),
+            ele: c[2] !== undefined ? parseFloat(c[2]) : null
+          })).filter(p => !isNaN(p.lat) && !isNaN(p.lng));
+
+          if (points.length > 0) {
+            this.addRoute({
+              name: `${featName} (Tramo ${partIdx + 1})`,
+              startDate: props.date || extractDateFromName(featName) || null
+            }, points, false);
+            added = true;
+          }
+        });
+      } else if (geom.type === 'Point') {
+        const coords = geom.coordinates || [];
+        const lng = parseFloat(coords[0]);
+        const lat = parseFloat(coords[1]);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          this.markers.push({
+            id: String(props.id || `marker-${Date.now()}-${idx}`),
+            name: featName,
+            desc: props.description || props.desc || '',
+            lat,
+            lng,
+            color: props.color || '#2196F3'
+          });
+          added = true;
+        }
+      }
+    });
+
+    if (added) {
+      this.renderMarkersAndFavorites();
+    }
+    return added;
+  }
+
+  /**
+   * Normaliza una lista heterogénea de puntos a formato estándar { lat, lng, ele, speed, timestamp }
+   */
+  _normalizePointsArray(pts) {
+    if (!Array.isArray(pts)) return [];
+    return pts.map(p => {
+      if (!p) return null;
+      let lat, lng, ele = null, speed = null, timestamp = null;
+
+      if (Array.isArray(p) && p.length >= 2) {
+        const v0 = parseFloat(p[0]);
+        const v1 = parseFloat(p[1]);
+        // Detección heurística de [lat, lng] vs [lng, lat]:
+        // Si el segundo valor está fuera del rango [-90, 90], el primero es lat y el segundo es lng (o viceversa)
+        if (Math.abs(v0) <= 90 && Math.abs(v1) > 90) {
+          lat = v0; lng = v1;
+        } else if (Math.abs(v1) <= 90 && Math.abs(v0) > 90) {
+          lng = v0; lat = v1;
+        } else {
+          // Por defecto asumimos [lat, lng] a menos que sea formato GeoJSON [lon, lat]
+          lat = v0; lng = v1;
+        }
+        if (p.length > 2) ele = parseFloat(p[2]) || null;
+      } else if (typeof p === 'object') {
+        const rawLat = p.lat !== undefined ? p.lat : (p.latitude !== undefined ? p.latitude : (p.latitud !== undefined ? p.latitud : p.y));
+        const rawLng = p.lng !== undefined ? p.lng : (p.lon !== undefined ? p.lon : (p.longitude !== undefined ? p.longitude : (p.longitud !== undefined ? p.longitud : p.x)));
+        lat = parseFloat(rawLat);
+        lng = parseFloat(rawLng);
+        ele = p.ele !== undefined ? parseFloat(p.ele) : (p.alt !== undefined ? parseFloat(p.alt) : (p.altitude !== undefined ? parseFloat(p.altitude) : (p.elevacion !== undefined ? parseFloat(p.elevacion) : null)));
+        speed = p.speed !== undefined ? parseFloat(p.speed) : (p.velocidad !== undefined ? parseFloat(p.velocidad) : null);
+        timestamp = p.timestamp || p.time || p.fecha || null;
+      }
+
+      if (typeof lat === 'number' && !isNaN(lat) && typeof lng === 'number' && !isNaN(lng)) {
+        return { lat, lng, ele, speed, timestamp: parseFlexibleTimestamp(timestamp) };
+      }
+      return null;
+    }).filter(Boolean);
+  }
+
   getPhotoGeoMap() {
     const map = new Map();
     this.favorites.forEach(f => {

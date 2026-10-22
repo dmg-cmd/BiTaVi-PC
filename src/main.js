@@ -2054,6 +2054,7 @@ document.addEventListener('DOMContentLoaded', () => {
      const zipFiles = [];
      const imageFiles = [];
      const gpxFiles = [];
+     const jsonFiles = [];
      const textFiles = [];
 
      for (const file of files) {
@@ -2063,7 +2064,9 @@ document.addEventListener('DOMContentLoaded', () => {
          zipFiles.push(file);
        } else if (name.endsWith('.gpx')) {
          gpxFiles.push(file);
-       } else if (name.endsWith('.txt') || name.endsWith('.csv') || name.endsWith('.json')) {
+       } else if (name.endsWith('.json') || name.endsWith('.geojson')) {
+         jsonFiles.push(file);
+       } else if (name.endsWith('.txt') || name.endsWith('.csv')) {
          textFiles.push(file);
        } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|heic|gif|bmp)$/i.test(name)) {
          imageFiles.push(file);
@@ -2072,9 +2075,9 @@ document.addEventListener('DOMContentLoaded', () => {
        }
      }
 
-     if (zipFiles.length === 0 && textFiles.length === 0 && gpxFiles.length === 0 && imageFiles.length === 0) {
+     if (zipFiles.length === 0 && textFiles.length === 0 && gpxFiles.length === 0 && jsonFiles.length === 0 && imageFiles.length === 0) {
        console.warn('[BiTaVi] Ningún formato válido detectado');
-       alert('Formato no reconocido. Por favor selecciona un archivo .ZIP de backup, .GPX, .TXT (rutas, puntos, marcadores, favoritos) o fotos JPG/PNG.');
+       alert('Formato no reconocido. Por favor selecciona un archivo .ZIP de backup, .GPX, .JSON / .GeoJSON, .TXT (rutas, puntos, marcadores, favoritos) o fotos JPG/PNG.');
        return;
      }
 
@@ -2117,7 +2120,29 @@ document.addEventListener('DOMContentLoaded', () => {
            routeActions.classList.remove('hidden');
          }
 
-         const zipGpxEntries = (extracted.gpxFiles && extracted.gpxFiles.length > 0)
+         // Detección de archivos de rutas y geodatos en formato JSON / GeoJSON dentro del ZIP
+          let zipJsonFound = false;
+          for (const tf of extracted.textFiles) {
+            const lowerTf = tf.name.toLowerCase();
+            if (lowerTf.endsWith('.json') || lowerTf.endsWith('.geojson')) {
+              const fallbackName = tf.name.split('/').pop().replace(/\.[^/.]+$/, '');
+              try {
+                const added = nativeParser.parseJsonData(tf.content, fallbackName);
+                if (added) zipJsonFound = true;
+              } catch (jErr) {
+                console.warn('[BiTaVi] No se pudo interpretar JSON de ZIP:', tf.name, jErr);
+              }
+            }
+          }
+          if (zipJsonFound && !hasNativeFiles) {
+            currentRouteBounds = nativeParser.renderRoute('all');
+            populateRouteSelector(nativeParser.routes);
+            showRouteDate(nativeParser.routes);
+            updateAllRouteStats();
+            routeActions.classList.remove('hidden');
+          }
+
+          const zipGpxEntries = (extracted.gpxFiles && extracted.gpxFiles.length > 0)
            ? extracted.gpxFiles
            : (extracted.gpxText ? [{ name: extracted.gpxFileName || zipFile.name, content: extracted.gpxText }] : []);
 
@@ -2221,6 +2246,31 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error(err);
         alert(`Error al procesar archivos de texto: ${err.message}`);
       }
+    }
+
+    // Process Individual JSON / GeoJSON Files
+    if (jsonFiles.length > 0) {
+      showProgress('PROCESANDO GEODATOS JSON', `${jsonFiles.length} archivo(s)`, 20, 'Leyendo rutas y coordenadas JSON...', 'Interpretando estructura...');
+      let jsonAddedCount = 0;
+      for (const jf of jsonFiles) {
+        try {
+          const jsonText = await jf.text();
+          const fallbackName = jf.name.replace(/\.[^/.]+$/, '');
+          const success = nativeParser.parseJsonData(jsonText, fallbackName);
+          if (success) jsonAddedCount++;
+        } catch (jErr) {
+          console.warn('[BiTaVi] Error al procesar JSON:', jf.name, jErr);
+        }
+      }
+      if (jsonAddedCount > 0) {
+        currentRouteBounds = nativeParser.renderRoute('all');
+        populateRouteSelector(nativeParser.routes);
+        showRouteDate(nativeParser.routes);
+        updateAllRouteStats();
+        routeActions.classList.remove('hidden');
+        cursorCoords.textContent = `✅ Se cargaron rutas desde ${jsonAddedCount} archivo(s) JSON / GeoJSON.`;
+      }
+      hideProgress();
     }
 
     // Process Individual GPX Files (Carga incremental sin sobrescribir rutas previas)

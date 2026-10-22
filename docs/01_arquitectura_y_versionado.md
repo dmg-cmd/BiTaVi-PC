@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.1.2-alpha`
+- **Versión Actual**: `v1.1.3-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,11 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.1.3-alpha` (2026-10-22)
+- **Soporte Universal de Rutas, Puntos y Geodatos en Formato JSON / GeoJSON (`parseJsonData` y `parseGeoJson`)**:
+  - Incorporación de motor universal de interpretación de archivos `.json` y `.geojson`. Admite GeoJSON estándar (`FeatureCollection`, `LineString`, `MultiLineString`, `Point`), backups unificados en JSON (`routes`, `rutas`, `points`, `puntos`, `waypoints`, `paradas`), arrays de coordenadas directas y archivos emparejados.
+  - Reconocimiento tanto en la carga directa de archivos individuales como dentro de archivos `.ZIP` y carpetas conectadas.
 
 ### `v1.1.2-alpha` (2026-10-22)
 - **Advertencia Diagnóstica Interactiva y Resistencia en Selección Parcial de Archivos de Telemetría**:
