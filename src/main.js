@@ -632,10 +632,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (routesCounterBadge) {
       routesCounterBadge.textContent = stats.routesCount || 0;
     }
-    if (stats.routesCount > 0) {
+    // La tira de acciones de ruta se mantiene siempre visible en la parte superior
+    if (routeActions) {
       routeActions.classList.remove('hidden');
-    } else {
-      routeActions.classList.add('hidden');
     }
   }
 
@@ -2952,10 +2951,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const visibleBounds = (nativeParser.routeLayers && nativeParser.routeLayers.size > 0)
       ? nativeParser.getVisibleRoutesBounds()
       : null;
-    if (visibleBounds) {
-      mapInstance.fitBounds(visibleBounds);
+    const photoBounds = typeof photoHandler.getPhotosBounds === 'function' ? photoHandler.getPhotosBounds() : null;
+
+    const combined = L.latLngBounds([]);
+    if (visibleBounds && visibleBounds.isValid()) combined.extend(visibleBounds);
+    if (photoBounds && photoBounds.isValid()) combined.extend(photoBounds);
+
+    if (combined.isValid()) {
+      mapInstance.fitBounds(combined, { padding: [50, 50], maxZoom: 16 });
+      cursorCoords.textContent = '🎯 Rutas y elementos enfocados en el mapa.';
     } else if (currentRouteBounds && currentRouteBounds.isValid()) {
-      mapInstance.fitBounds(currentRouteBounds);
+      mapInstance.fitBounds(currentRouteBounds, { padding: [50, 50], maxZoom: 16 });
+      cursorCoords.textContent = '🎯 Rutas enfocadas en el mapa.';
+    } else {
+      cursorCoords.textContent = 'ℹ️ No hay rutas ni fotos en el mapa para enfocar.';
     }
   });
 
@@ -3189,7 +3198,8 @@ document.addEventListener('DOMContentLoaded', () => {
     statPhotosCount.textContent = '0';
     showRouteDate([]);
     routeSelectWrapper.classList.add('hidden');
-    routeActions.classList.add('hidden');
+    // Mantener la tira de acciones superior siempre visible
+    if (routeActions) routeActions.classList.remove('hidden');
     updatePhotosGallery([]);
     fileInput.value = '';
     await storage.clearSession();

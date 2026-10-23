@@ -24,7 +24,7 @@
           <div class="logo-text">
             <div class="title-row">
               <h1 class="app-title">BiTaVi</h1>
-              <span class="version-tag">v1.2.0-alpha</span>
+              <span class="version-tag">v1.2.1-alpha</span>
             </div>
             <span class="app-subtitle">BITÁCORA TÁCTICA DE VIAJE</span>
           </div>
@@ -210,6 +210,14 @@
               </div>
             </div>
 
+            <!-- Tira Superior de Acciones de Rutas (Siempre Visible, Nunca se Oculta) -->
+            <div id="route-actions" class="route-actions">
+              <button type="button" id="btn-fit-route" class="tactical-btn-sm highlight-btn" style="flex: 1; min-width: 95px; font-weight: 700;" title="Centrar y enfocar en el mapa todas las rutas y fotos cargadas">🎯 Enfocar Rutas</button>
+              <button type="button" id="btn-simulate-route" class="tactical-btn-sm accent" style="flex: 1; min-width: 90px;" title="Simular avance del recorrido sobre el mapa">▶ Simular Viaje</button>
+              <button type="button" id="btn-add-route-action" class="tactical-btn-sm" style="flex: 1; min-width: 80px;" title="Agregar otra ruta GPX, KML o JSON al mapa">➕ Agregar Ruta</button>
+              <button type="button" id="btn-clear-route" class="tactical-btn-sm danger" style="padding: 3px 8px;" title="Limpiar todas las rutas y elementos del mapa">🗑️ Limpiar</button>
+            </div>
+
             <!-- Mostrar / Ocultar / Gestionar Rutas -->
             <div id="route-select-wrapper" class="hidden" style="margin-bottom: 0.75rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; flex-wrap: wrap; gap: 4px;">
@@ -257,12 +265,6 @@
                 <span class="stat-label">FECHA RUTA</span>
                 <span class="stat-value" id="stat-route-date">--</span>
               </div>
-            </div>
-            <div id="route-actions" class="route-actions hidden">
-              <button id="btn-fit-route" class="tactical-btn-sm">Enfocar Rutas</button>
-              <button id="btn-simulate-route" class="tactical-btn-sm accent" title="Simular avance del recorrido sobre el mapa">▶ Simular Viaje</button>
-              <button id="btn-add-route-action" class="tactical-btn-sm" title="Agregar otra ruta GPX al mapa">➕ Agregar Ruta</button>
-              <button id="btn-clear-route" class="tactical-btn-sm danger">Limpiar Mapa</button>
             </div>
           </section>
 

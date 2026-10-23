@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.2.0-alpha`
+- **Versión Actual**: `v1.2.1-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -16,6 +16,15 @@
 ---
 
 ## 3. Historial de Versiones (Changelog)
+
+### `v1.2.1-alpha` (2026-10-22)
+- **Tira de Botones de Rutas en la Parte Superior Permanente y Auto-Encuadre Universal**:
+  - **Reposicionamiento Superior Permanente de `#route-actions`**:
+    - Se reubicó la tira de botones (`[🎯 Enfocar Rutas]`, `[▶ Simular Viaje]`, `[➕ Agregar Ruta]`, `[🗑️ Limpiar]`) en la parte superior de la sección `01 TELEMETRÍA DE RUTAS Y PUNTOS`, justo debajo del encabezado y antes de la lista y estadísticas.
+    - Se eliminó la clase restrictiva `.hidden` y la lógica de ocultamiento dinámico: la botonera permanece **siempre visible y accesible**, evitando que quede oculta o empujada al fondo de la pantalla cuando la lista de rutas es larga.
+    - Se incorporó soporte `position: sticky; top: 0` con fondo táctico translúcido y desenfoque suave, impidiendo que la botonera se pierda al desplazarse verticalmente.
+  - **Auto-Encuadre Universal Mejorado (`btnFitRoute`)**:
+    - El botón `[🎯 Enfocar Rutas]` ahora combina simultáneamente las coberturas de rutas y fotografías geolocalizadas (`visibleRoutesBounds` + `photosBounds`), ofreciendo un encuadre inmediato del viaje con margen de seguridad óptimo y avisos informativos tácticos.
 
 ### `v1.2.0-alpha` (2026-10-22)
 - **Importador Táctico de Jornada / Fotos del Día con Selector Visual y Previsualización Interactiva (Hito de Versión Media)**:
