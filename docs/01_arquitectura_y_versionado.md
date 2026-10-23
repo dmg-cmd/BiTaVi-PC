@@ -2,7 +2,7 @@
 
 ## 1. Identificación del Sistema
 - **Nombre del Proyecto**: BiTaVi (Bitácora Táctica de Viaje) - Visor para PC
-- **Versión Actual**: `v1.2.1-alpha`
+- **Versión Actual**: `v1.2.2-alpha`
 - **Plataforma**: Aplicación Web / Desktop para PC
 - **Licencia**: Código Abierto / Uso Táctico Libre
 
@@ -17,7 +17,26 @@
 
 ## 3. Historial de Versiones (Changelog)
 
-### `v1.2.1-alpha` (2026-10-22)
+### `v1.2.2-alpha` (2026-10-22)
+- **Integración Directa con Google Fotos (OAuth 2.0 y Google Photos API)**:
+  - **Conector Oficial de Google Fotos (`src/components/photos-connector.js`)**:
+    - Implementación de la clase `GooglePhotosConnector` con soporte completo para Google Identity Services (OAuth 2.0) y Google Photos Library API (`https://www.googleapis.com/auth/photoslibrary.readonly`).
+    - Almacenamiento seguro del Client ID en `localStorage` (`bitavi_gphotos_client_id`), reutilizando automáticamente el Client ID de Google Drive si ya estaba configurado para máxima comodidad.
+    - Soporte para listado de fotos recientes (`listRecentPhotos`), consulta de álbumes (`listAlbums`), navegación interna de fotos por álbum (`listAlbumPhotos`) y filtro automático por fecha de expedición (`searchPhotosByDate`).
+    - Descarga concurrente con fallback de alta resolución (`=d` original o `=w2048-h2048`), generación de objetos `File` estándar y adjunción de metadatos `_gphotosMetadata` (fecha de creación, cámara, dimensiones).
+  - **Motor Mejorado de Geolocalización Temporal de Fotos (`src/components/photo-parser.js`)**:
+    - Nueva función `inferirTimestampFoto()` que extrae marcas de tiempo de `_gphotosMetadata.creationTime`, timestamps EXIF, nombres con 13 dígitos y patrones universales de cámara de smartphones (`YYYYMMDD_HHMMSS` como `IMG_20240512_143022.jpg`).
+    - `leerMetadatosFoto()` complementa la información de la cámara y fecha si faltan en los encabezados EXIF locales.
+    - `retryGeotagging()` y `processPhotoFiles()` correlacionan automáticamente las fotos descargadas de Google Fotos con el trazado de la ruta activa en pantalla según el momento exacto en que fueron tomadas.
+  - **Modal Interactivo de Google Fotos (`#gphotos-modal`)**:
+    - Interfaz táctica con pestañas de navegación: *"🖼️ Recientes"*, *"📁 Álbumes"* y *"📅 Del Día de la Ruta"*.
+    - Cuadrícula visual con miniaturas de alta calidad, casillas de selección individual, botón *"Seleccionar Todas"* y contador dinámico de fotos marcadas.
+    - Diálogo de progreso táctico con radar y porcentaje en tiempo real durante la descarga e importación.
+  - **Accesos Directos en la Interfaz**:
+    - Botón `[📸 Google Fotos]` en el área de carga (dropzone).
+    - Botón `[📸 Importar desde Google Fotos]` en la sección lateral de fotografías.
+    - Opción directa en el menú superior `📁 Archivo ▾ -> 📸 Google Fotos...`.
+  - **Pruebas Automatizadas**: 7 nuevas pruebas en `tests/photos-connector.test.js` (67/67 tests aprobados al 100%).
 - **Tira de Botones de Rutas en la Parte Superior Permanente y Auto-Encuadre Universal**:
   - **Reposicionamiento Superior Permanente de `#route-actions`**:
     - Se reubicó la tira de botones (`[🎯 Enfocar Rutas]`, `[▶ Simular Viaje]`, `[➕ Agregar Ruta]`, `[🗑️ Limpiar]`) en la parte superior de la sección `01 TELEMETRÍA DE RUTAS Y PUNTOS`, justo debajo del encabezado y antes de la lista y estadísticas.

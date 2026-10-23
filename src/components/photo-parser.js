@@ -156,6 +156,54 @@ export async function leerGpsFoto(file) {
 }
 
 /**
+ * Intenta inferir el timestamp numérico (epoch ms) de una foto a partir de:
+ * 1. Timestamp EXIF ya leído.
+ * 2. Metadatos adjuntos de Google Fotos (creationTime).
+ * 3. 13 dígitos en el nombre del archivo (formato milisegundos BiTaVi/Android).
+ * 4. Patrón YYYYMMDD_HHMMSS habitual en cámaras de Android/Google Fotos.
+ * @param {File|Blob} file 
+ * @param {number|null} existingTs 
+ * @returns {number|null}
+ */
+export function inferirTimestampFoto(file, existingTs = null) {
+  if (typeof existingTs === 'number' && !isNaN(existingTs) && existingTs > 0) {
+    return existingTs;
+  }
+
+  if (file && file._gphotosMetadata && file._gphotosMetadata.creationTime) {
+    const dt = new Date(file._gphotosMetadata.creationTime);
+    if (!isNaN(dt.getTime())) return dt.getTime();
+  }
+
+  const name = (file && file.name) ? file.name : '';
+
+  // 13 dígitos continuos (milisegundos)
+  const ts13 = name.match(/(\d{13})/);
+  if (ts13) {
+    const parsed = parseInt(ts13[1], 10);
+    if (!isNaN(parsed) && parsed > 946684800000) { // Mayor al año 2000
+      return parsed;
+    }
+  }
+
+  // Patrón YYYYMMDD_HHMMSS (ej: IMG_20240512_143022.jpg)
+  const matchYmd = name.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  if (matchYmd) {
+    const [_, y, mo, d, h, mi, s] = matchYmd;
+    const year = parseInt(y, 10);
+    const month = parseInt(mo, 10) - 1;
+    const day = parseInt(d, 10);
+    const hour = parseInt(h, 10);
+    const minute = parseInt(mi, 10);
+    const second = parseInt(s, 10);
+    const dt = new Date(year, month, day, hour, minute, second);
+    if (!isNaN(dt.getTime())) return dt.getTime();
+  }
+
+  return null;
+}
+
+/**
  * Lee metadatos EXIF complementarios: fecha de captura, cámara y altitud.
  * @param {File|Blob} file
  * @returns {Promise<{dateStr:string, ts:number|null, camera:string, alt:number|null}>}
@@ -172,25 +220,52 @@ export async function leerMetadatosFoto(file) {
       pick: ['DateTimeOriginal', 'CreateDate', 'Make', 'Model', 'GPSAltitude']
     });
 
-    if (!exifData) return result;
+    if (exifData) {
+      const rawAlt = Number(exifData.GPSAltitude);
+      if (isFinite(rawAlt)) result.alt = rawAlt;
 
-    const rawAlt = Number(exifData.GPSAltitude);
-    if (isFinite(rawAlt)) result.alt = rawAlt;
+      const rawDate = exifData.DateTimeOriginal || exifData.CreateDate;
+      if (rawDate) {
+        const dt = new Date(rawDate);
+        if (!isNaN(dt.getTime())) {
+          result.dateStr = dt.toLocaleString();
+          result.ts = dt.getTime();
+        }
+      }
 
-    const rawDate = exifData.DateTimeOriginal || exifData.CreateDate;
-    if (rawDate) {
-      const dt = new Date(rawDate);
+      if (exifData.Make || exifData.Model) {
+        result.camera = `${exifData.Make || ''} ${exifData.Model || ''}`.trim();
+      }
+    }
+  } catch (err) {
+    console.warn('[EXIF] Metadatos complementarios no disponibles:', file && file.name, err && err.message);
+  }
+
+  // Complemento con metadatos de Google Fotos si faltan campos
+  if (file && file._gphotosMetadata) {
+    const gpMeta = file._gphotosMetadata;
+    if (gpMeta.creationTime && (result.ts === null || result.dateStr === 'Fecha no disponible')) {
+      const dt = new Date(gpMeta.creationTime);
       if (!isNaN(dt.getTime())) {
         result.dateStr = dt.toLocaleString();
         result.ts = dt.getTime();
       }
     }
-
-    if (exifData.Make || exifData.Model) {
-      result.camera = `${exifData.Make || ''} ${exifData.Model || ''}`.trim();
+    if (gpMeta.photo && result.camera === 'Desconocida') {
+      const cam = `${gpMeta.photo.cameraMake || ''} ${gpMeta.photo.cameraModel || ''}`.trim();
+      if (cam) result.camera = cam;
     }
-  } catch (err) {
-    console.warn('[EXIF] Metadatos complementarios no disponibles:', file && file.name, err && err.message);
+  }
+
+  // Si aún no hay ts, intentar inferir del nombre
+  if (result.ts === null) {
+    const inferred = inferirTimestampFoto(file, null);
+    if (inferred) {
+      result.ts = inferred;
+      if (result.dateStr === 'Fecha no disponible') {
+        result.dateStr = new Date(inferred).toLocaleString();
+      }
+    }
   }
 
   return result;
@@ -252,25 +327,24 @@ export class PhotoHandler {
           }
         }
 
-        // 3. Si aún no hay GPS, intentar geotagging por timestamp del nombre de archivo (BiTaVi Android)
-        //    Ejemplo: IMG_GALLERY_1782930974104.jpg o IMG_1783348610593_xxx.jpg
-        const tsMatch = file.name.match(/(\d{13})/);
-        if (tsMatch) {
-          const fileTimestamp = parseInt(tsMatch[1], 10);
-          const d = new Date(fileTimestamp);
+        // 3. Si aún no hay GPS, intentar geotagging por correlación temporal contra la ruta
+        //    Soporta: timestamps EXIF, Google Photos creationTime, 13 dígitos y patrón YYYYMMDD_HHMMSS
+        const photoTs = inferirTimestampFoto(file, ts);
+        if (photoTs) {
+          const d = new Date(photoTs);
           if (!isNaN(d.getTime()) && (dateStr === 'Fecha no disponible' || !ts)) {
             dateStr = d.toLocaleString();
-            ts = fileTimestamp;
+            ts = photoTs;
           }
 
           if (!hasGps && routePoints.length > 0) {
-            // Buscar el punto GPS con timestamp más cercano (dentro de un rango razonable)
+            // Buscar el punto GPS con timestamp más cercano (dentro de un rango de 1 hora)
             let closestPoint = null;
             let minDiff = Infinity;
 
             for (const pt of routePoints) {
               if (pt.timestamp && pt.timestamp > 0) {
-                const diff = Math.abs(pt.timestamp - fileTimestamp);
+                const diff = Math.abs(pt.timestamp - photoTs);
                 if (diff < minDiff) {
                   minDiff = diff;
                   closestPoint = pt;
@@ -491,17 +565,16 @@ export class PhotoHandler {
         }
       }
 
-      // 2. Geotagging por timestamp del nombre de archivo contra las coordenadas de la ruta
+      // 2. Geotagging por timestamp de foto contra las coordenadas de la ruta
       if (lat === null && routePoints && routePoints.length > 0) {
-        const tsMatch = photo.name.match(/(\d{13})/);
-        if (tsMatch) {
-          const fileTimestamp = parseInt(tsMatch[1], 10);
+        const photoTs = inferirTimestampFoto(photo.blob || { name: photo.name }, photo.ts);
+        if (photoTs) {
           let closestPoint = null;
           let minDiff = Infinity;
 
           for (const pt of routePoints) {
             if (pt.timestamp && pt.timestamp > 0) {
-              const diff = Math.abs(pt.timestamp - fileTimestamp);
+              const diff = Math.abs(pt.timestamp - photoTs);
               if (diff < minDiff) {
                 minDiff = diff;
                 closestPoint = pt;

@@ -5,6 +5,7 @@ import { PhotoHandler, esArchivoImagen, leerGpsFoto, leerMetadatosFoto } from '.
 import { ZipBackupHandler } from './components/zip-loader.js';
 import { GeoSearch } from './components/search.js';
 import { GoogleDriveConnector } from './components/drive-connector.js';
+import { GooglePhotosConnector } from './components/photos-connector.js';
 import { FolderBackupLoader } from './components/folder-loader.js';
 import { BiTaViNativeParser } from './components/bitavi-native-parser.js';
 import { RoutePlaybackSimulator } from './components/playback.js';
@@ -91,6 +92,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const gdriveStatusMsg = document.getElementById('gdrive-status-msg');
   const gdriveFilesContainer = document.getElementById('gdrive-files-container');
   const gdriveFilesList = document.getElementById('gdrive-files-list');
+
+  // Google Photos Modal Elements
+  const btnOpenGphotos = document.getElementById('btn-open-gphotos');
+  const btnPhotosGphotos = document.getElementById('btn-photos-gphotos');
+  const gphotosModal = document.getElementById('gphotos-modal');
+  const gphotosModalClose = document.getElementById('gphotos-modal-close');
+  const gphotosModalBackdrop = document.getElementById('gphotos-modal-backdrop');
+  const gphotosClientIdInput = document.getElementById('gphotos-client-id');
+  const btnSaveGphotosCreds = document.getElementById('btn-save-gphotos-creds');
+  const btnGphotosLogin = document.getElementById('btn-gphotos-login');
+  const gphotosNavTabs = document.getElementById('gphotos-nav-tabs');
+  const btnGphotosTabRecent = document.getElementById('btn-gphotos-tab-recent');
+  const btnGphotosTabAlbums = document.getElementById('btn-gphotos-tab-albums');
+  const btnGphotosTabRouteDate = document.getElementById('btn-gphotos-tab-routedate');
+  const gphotosStatusMsg = document.getElementById('gphotos-status-msg');
+  const gphotosAlbumsContainer = document.getElementById('gphotos-albums-container');
+  const gphotosAlbumsList = document.getElementById('gphotos-albums-list');
+  const gphotosGridWrapper = document.getElementById('gphotos-grid-wrapper');
+  const chkGphotosSelectAll = document.getElementById('chk-gphotos-select-all');
+  const gphotosSelectionCount = document.getElementById('gphotos-selection-count');
+  const btnImportSelectedGphotos = document.getElementById('btn-import-selected-gphotos');
+  const gphotosGrid = document.getElementById('gphotos-grid');
 
   // Connected Folder & Backup Selector Elements
   const connectedFolderBar = document.getElementById('connected-folder-bar');
@@ -1513,6 +1536,342 @@ document.addEventListener('DOMContentLoaded', () => {
 
     gdriveStatusMsg.textContent = `✅ ${files.length} archivo(s) de backup encontrados en tu cuenta.`;
   }
+
+  // ========================================================
+  // Google Photos Tactical Integration Hub
+  // ========================================================
+  let gphotosLoadedItems = [];
+  let gphotosSelectedIds = new Set();
+  let gphotosCurrentAlbumId = null;
+
+  const gphotosConnector = new GooglePhotosConnector(
+    async (downloadedFiles) => {
+      closeGphotosModal();
+      await handleFiles(downloadedFiles);
+    },
+    (status) => {
+      if (gphotosStatusMsg) gphotosStatusMsg.textContent = status;
+      if (cursorCoords) cursorCoords.textContent = status;
+    }
+  );
+
+  if (gphotosClientIdInput) {
+    gphotosClientIdInput.value = gphotosConnector.clientId;
+  }
+
+  function openGphotosModal() {
+    if (!gphotosModal) return;
+    gphotosModal.classList.remove('hidden');
+    if (gphotosStatusMsg) gphotosStatusMsg.textContent = '';
+    // Si ya tiene Client ID configurado y no hay fotos cargadas, sugerir conectar
+    if (gphotosClientIdInput && !gphotosClientIdInput.value && gphotosConnector.clientId) {
+      gphotosClientIdInput.value = gphotosConnector.clientId;
+    }
+  }
+
+  function closeGphotosModal() {
+    if (!gphotosModal) return;
+    gphotosModal.classList.add('hidden');
+  }
+
+  if (btnOpenGphotos) btnOpenGphotos.addEventListener('click', openGphotosModal);
+  if (btnPhotosGphotos) btnPhotosGphotos.addEventListener('click', openGphotosModal);
+  if (gphotosModalClose) gphotosModalClose.addEventListener('click', closeGphotosModal);
+  if (gphotosModalBackdrop) gphotosModalBackdrop.addEventListener('click', closeGphotosModal);
+
+  if (btnSaveGphotosCreds) {
+    btnSaveGphotosCreds.addEventListener('click', () => {
+      const cid = gphotosClientIdInput.value.trim();
+      if (!cid) {
+        alert('Por favor ingresa un Client ID de Google Cloud Console.');
+        return;
+      }
+      gphotosConnector.saveCredentials(cid);
+      gphotosStatusMsg.textContent = '💾 Credenciales guardadas en tu navegador.';
+    });
+  }
+
+  function setGphotosActiveTab(tabName) {
+    [btnGphotosTabRecent, btnGphotosTabAlbums, btnGphotosTabRouteDate].forEach(btn => {
+      if (btn) btn.classList.remove('active');
+    });
+    if (tabName === 'recent' && btnGphotosTabRecent) btnGphotosTabRecent.classList.add('active');
+    if (tabName === 'albums' && btnGphotosTabAlbums) btnGphotosTabAlbums.classList.add('active');
+    if (tabName === 'route' && btnGphotosTabRouteDate) btnGphotosTabRouteDate.classList.add('active');
+  }
+
+  if (btnGphotosLogin) {
+    btnGphotosLogin.addEventListener('click', async () => {
+      try {
+        gphotosStatusMsg.textContent = '🔑 Conectando con Google Fotos...';
+        await gphotosConnector.ensureAuthenticated();
+        gphotosStatusMsg.textContent = '🔍 Cargando fotos recientes...';
+        if (gphotosNavTabs) gphotosNavTabs.classList.remove('hidden');
+        setGphotosActiveTab('recent');
+        await loadRecentGphotos();
+      } catch (err) {
+        console.error('[GPhotos] Error de conexión:', err);
+        gphotosStatusMsg.textContent = `❌ ${err.message || 'No se pudo conectar con Google Fotos'}`;
+      }
+    });
+  }
+
+  async function loadRecentGphotos() {
+    try {
+      if (gphotosAlbumsContainer) gphotosAlbumsContainer.classList.add('hidden');
+      const res = await gphotosConnector.listRecentPhotos(60);
+      renderGphotosGrid(res.items);
+    } catch (err) {
+      gphotosStatusMsg.textContent = `❌ Error: ${err.message}`;
+    }
+  }
+
+  async function loadGphotosAlbums() {
+    try {
+      if (gphotosGridWrapper) gphotosGridWrapper.classList.add('hidden');
+      const res = await gphotosConnector.listAlbums(30);
+      renderGphotosAlbums(res.albums);
+    } catch (err) {
+      gphotosStatusMsg.textContent = `❌ Error: ${err.message}`;
+    }
+  }
+
+  if (btnGphotosTabRecent) {
+    btnGphotosTabRecent.addEventListener('click', async () => {
+      setGphotosActiveTab('recent');
+      await loadRecentGphotos();
+    });
+  }
+
+  if (btnGphotosTabAlbums) {
+    btnGphotosTabAlbums.addEventListener('click', async () => {
+      setGphotosActiveTab('albums');
+      await loadGphotosAlbums();
+    });
+  }
+
+  if (btnGphotosTabRouteDate) {
+    btnGphotosTabRouteDate.addEventListener('click', async () => {
+      setGphotosActiveTab('route');
+      if (gphotosAlbumsContainer) gphotosAlbumsContainer.classList.add('hidden');
+
+      // Buscar si hay alguna fecha identificable en las rutas cargadas
+      let targetDate = null;
+      if (allRoutePoints.length > 0) {
+        const ptWithTs = allRoutePoints.find(p => p.timestamp && p.timestamp > 0);
+        if (ptWithTs) {
+          targetDate = new Date(ptWithTs.timestamp);
+        }
+      }
+
+      if (!targetDate && allRoutesData.length > 0) {
+        const first = allRoutesData[0];
+        const dateFromName = extractDateFromName(first.name);
+        if (dateFromName) targetDate = new Date(dateFromName);
+      }
+
+      if (!targetDate) {
+        gphotosStatusMsg.textContent = 'ℹ️ No se detectó fecha en las rutas activas. Mostrando fotos recientes.';
+        await loadRecentGphotos();
+        return;
+      }
+
+      const dateStr = targetDate.toISOString().slice(0, 10);
+      gphotosStatusMsg.textContent = `📅 Filtrando fotos del día de la ruta (${dateStr})...`;
+
+      try {
+        const res = await gphotosConnector.searchPhotosByDate(targetDate, 60);
+        renderGphotosGrid(res.items);
+      } catch (err) {
+        gphotosStatusMsg.textContent = `❌ Error filtrando por fecha: ${err.message}`;
+      }
+    });
+  }
+
+  function renderGphotosAlbums(albums) {
+    if (!gphotosAlbumsContainer || !gphotosAlbumsList) return;
+    gphotosAlbumsContainer.classList.remove('hidden');
+    gphotosAlbumsList.innerHTML = '';
+
+    if (!albums || albums.length === 0) {
+      gphotosAlbumsList.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-dark); padding: 1rem;">No se encontraron álbumes en tu cuenta.</div>';
+      return;
+    }
+
+    albums.forEach(album => {
+      const card = document.createElement('div');
+      card.className = 'gphoto-album-card';
+      const coverUrl = album.coverPhotoBaseUrl ? `${album.coverPhotoBaseUrl}=w200-h150-c` : '';
+      const count = album.mediaItemsCount || 0;
+
+      card.innerHTML = `
+        ${coverUrl ? `<img src="${coverUrl}" class="gphoto-album-cover" loading="lazy" alt="${album.title || 'Álbum'}" />` : '<div class="gphoto-album-cover" style="display:flex;align-items:center;justify-content:center;color:#475569;">📁</div>'}
+        <div class="gphoto-album-body">
+          <span class="gphoto-album-title" title="${album.title || 'Sin título'}">${album.title || 'Sin título'}</span>
+          <span class="gphoto-album-count">${count} foto(s)</span>
+        </div>
+      `;
+
+      card.addEventListener('click', async () => {
+        try {
+          gphotosAlbumsContainer.classList.add('hidden');
+          gphotosStatusMsg.textContent = `🔍 Cargando fotos del álbum "${album.title}"...`;
+          const res = await gphotosConnector.listAlbumPhotos(album.id, 60);
+          renderGphotosGrid(res.items);
+        } catch (err) {
+          gphotosStatusMsg.textContent = `❌ Error al abrir álbum: ${err.message}`;
+        }
+      });
+
+      gphotosAlbumsList.appendChild(card);
+    });
+
+    gphotosStatusMsg.textContent = `📁 ${albums.length} álbumes disponibles. Haz clic en uno para ver sus fotos.`;
+  }
+
+  function updateGphotosSelectionBadge() {
+    if (!gphotosSelectionCount) return;
+    gphotosSelectionCount.textContent = `${gphotosSelectedIds.size} de ${gphotosLoadedItems.length} seleccionada(s)`;
+    if (chkGphotosSelectAll) {
+      chkGphotosSelectAll.checked = gphotosLoadedItems.length > 0 && gphotosSelectedIds.size === gphotosLoadedItems.length;
+    }
+  }
+
+  function renderGphotosGrid(items) {
+    if (!gphotosGridWrapper || !gphotosGrid) return;
+    gphotosLoadedItems = items || [];
+    gphotosSelectedIds.clear();
+
+    if (gphotosAlbumsContainer) gphotosAlbumsContainer.classList.add('hidden');
+    gphotosGridWrapper.classList.remove('hidden');
+    gphotosGrid.innerHTML = '';
+
+    if (gphotosLoadedItems.length === 0) {
+      gphotosGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-dark); padding: 2rem;">No se encontraron fotografías en esta sección.</div>';
+      gphotosStatusMsg.textContent = 'ℹ️ Sin fotografías encontradas.';
+      updateGphotosSelectionBadge();
+      return;
+    }
+
+    // Por defecto marcar todas para conveniencia de expedición
+    gphotosLoadedItems.forEach(item => gphotosSelectedIds.add(item.id));
+    updateGphotosSelectionBadge();
+
+    gphotosLoadedItems.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'gphoto-item-card selected';
+      card.dataset.id = item.id;
+
+      const thumbUrl = `${item.baseUrl}=w240-h240-c`;
+      const dateStr = item.mediaMetadata?.creationTime 
+        ? new Date(item.mediaMetadata.creationTime).toLocaleDateString()
+        : '--';
+
+      card.innerHTML = `
+        <div class="gphoto-thumb-wrapper">
+          <label class="gphoto-chk-pill" onclick="event.stopPropagation();">
+            <input type="checkbox" checked data-id="${item.id}" />
+          </label>
+          <img src="${thumbUrl}" class="gphoto-thumb-img" loading="lazy" alt="${item.filename || 'Foto'}" />
+        </div>
+        <div class="gphoto-info">
+          <span class="gphoto-name" title="${item.filename}">${item.filename || 'Foto'}</span>
+          <span class="gphoto-date">📅 ${dateStr}</span>
+        </div>
+      `;
+
+      const chk = card.querySelector('input[type="checkbox"]');
+
+      const toggleItem = (checked) => {
+        if (checked) {
+          gphotosSelectedIds.add(item.id);
+          card.classList.add('selected');
+        } else {
+          gphotosSelectedIds.delete(item.id);
+          card.classList.remove('selected');
+        }
+        if (chk) chk.checked = checked;
+        updateGphotosSelectionBadge();
+      };
+
+      card.addEventListener('click', () => {
+        const isSelected = gphotosSelectedIds.has(item.id);
+        toggleItem(!isSelected);
+      });
+
+      if (chk) {
+        chk.addEventListener('change', (e) => {
+          toggleItem(e.target.checked);
+        });
+      }
+
+      gphotosGrid.appendChild(card);
+    });
+
+    gphotosStatusMsg.textContent = `🖼️ ${gphotosLoadedItems.length} foto(s) encontradas en Google Fotos.`;
+  }
+
+  if (chkGphotosSelectAll) {
+    chkGphotosSelectAll.addEventListener('change', (e) => {
+      const selectAll = e.target.checked;
+      gphotosSelectedIds.clear();
+      const cards = gphotosGrid.querySelectorAll('.gphoto-item-card');
+      cards.forEach(card => {
+        const id = card.dataset.id;
+        const chk = card.querySelector('input[type="checkbox"]');
+        if (selectAll) {
+          gphotosSelectedIds.add(id);
+          card.classList.add('selected');
+          if (chk) chk.checked = true;
+        } else {
+          card.classList.remove('selected');
+          if (chk) chk.checked = false;
+        }
+      });
+      updateGphotosSelectionBadge();
+    });
+  }
+
+  if (btnImportSelectedGphotos) {
+    btnImportSelectedGphotos.addEventListener('click', async () => {
+      const selectedItems = gphotosLoadedItems.filter(it => gphotosSelectedIds.has(it.id));
+      if (selectedItems.length === 0) {
+        alert('Por favor selecciona al menos una foto para importar.');
+        return;
+      }
+
+      closeGphotosModal();
+      showProgress(
+        'IMPORTANDO DESDE GOOGLE FOTOS',
+        `Descargando ${selectedItems.length} fotografías seleccionadas...`,
+        0,
+        'Estableciendo canal seguro con Google...',
+        `Total: ${selectedItems.length} fotos`
+      );
+
+      try {
+        const downloadedFiles = await gphotosConnector.downloadPhotos(
+          selectedItems,
+          (prog) => {
+            updateProgress(
+              prog.percent,
+              prog.phase,
+              `Descargadas ${prog.current} de ${prog.total} fotos (${prog.percent}%)`
+            );
+          }
+        );
+
+        updateProgress(100, 'Integrando fotografías al mapa táctico...', 'Procesando coordenadas GPS y correlación temporal...');
+        await handleFiles(downloadedFiles);
+        hideProgress(400);
+      } catch (err) {
+        hideProgress(0);
+        console.error('[GPhotos] Error importando fotos:', err);
+        alert(`Error al importar fotos de Google Fotos: ${err.message}`);
+      }
+    });
+  }
+
 
   // 3. Search Bar Integration (Búsqueda Híbrida Táctica: Expedición Local + OSM)
   let searchDebounce = null;
@@ -3522,6 +3881,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   bindMenuAction('menu-action-gdrive', () => {
     openGdriveModal();
+  });
+  bindMenuAction('menu-action-gphotos', () => {
+    openGphotosModal();
   });
   bindMenuAction('menu-action-save-combined', () => {
     saveCombinedRoute();

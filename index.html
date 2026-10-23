@@ -24,7 +24,7 @@
           <div class="logo-text">
             <div class="title-row">
               <h1 class="app-title">BiTaVi</h1>
-              <span class="version-tag">v1.2.1-alpha</span>
+              <span class="version-tag">v1.2.2-alpha</span>
             </div>
             <span class="app-subtitle">BITÁCORA TÁCTICA DE VIAJE</span>
           </div>
@@ -42,6 +42,7 @@
               <button type="button" class="menu-item" id="menu-action-load-gpx"><span>🗺️</span> Cargar Rutas (.GPX / .JSON)</button>
               <button type="button" class="menu-item" id="menu-action-connect-folder"><span>📁</span> Conectar Carpeta (Drive / PC)</button>
               <button type="button" class="menu-item" id="menu-action-gdrive"><span>☁️</span> Google Drive...</button>
+              <button type="button" class="menu-item" id="menu-action-gphotos"><span>📸</span> Google Fotos...</button>
               <div class="menu-separator"></div>
               <button type="button" class="menu-item" id="menu-action-save-combined"><span>🔗</span> Unir y Guardar en .GPX</button>
               <button type="button" class="menu-item" id="menu-action-save-by-day"><span>📅</span> Guardar Rutas por Día</button>
@@ -288,7 +289,8 @@
               <span class="empty-hint">Al cargar fotos con GPS (EXIF) se posicionarán como marcadores exactos en el mapa.</span>
             </div>
             <div id="photos-list" class="photos-list hidden"></div>
-            <button id="btn-share-card" class="tactical-btn-sm accent full-width hidden" style="margin-top: 6px;" title="Generar tarjeta táctica para compartir">🛰️ Compartir Tarjeta</button>
+            <button id="btn-photos-gphotos" class="tactical-btn-sm full-width" style="margin-top: 6px; border-color: #fbbc04; color: #fbbc04; background: rgba(251, 188, 4, 0.08);" title="Conectar e importar fotos desde Google Fotos">📸 Importar desde Google Fotos</button>
+            <button id="btn-share-card" class="tactical-btn-sm accent full-width hidden" style="margin-top: 4px;" title="Generar tarjeta táctica para compartir">🛰️ Compartir Tarjeta</button>
             <button id="btn-export-kmz-photos" class="tactical-btn-sm full-width hidden" style="margin-top: 4px; border-color: var(--accent-cyan);" title="Exportar fotos geolocalizadas en paquete KMZ para Google Earth 3D">🌐 Exportar Fotos a KMZ 3D</button>
           </section>
 
@@ -309,6 +311,7 @@
                 <span class="dropzone-sub">o una <strong>Carpeta Completa</strong> con rutas, favoritos y fotos</span>
                 <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; flex-wrap: wrap;">
                   <button type="button" class="tactical-btn-sm highlight-btn" id="btn-import-day-trip" style="border-color: var(--accent-cyan); color: #fff; background: rgba(0, 240, 255, 0.18); font-weight: 700;" title="Seleccionar la carpeta con fotos y ruta del día para previsualizar y elegir qué fotos subir al mapa">📸 Cargar Fotos del Día y Ruta</button>
+                  <button type="button" class="tactical-btn-sm" id="btn-open-gphotos" style="border-color: #fbbc04; color: #fff; background: rgba(251, 188, 4, 0.15);" title="Conectar e importar fotos directamente desde Google Fotos">📸 Google Fotos</button>
                   <button type="button" class="tactical-btn-sm" id="btn-browse-files">📄 Explorar Archivos</button>
                   <button type="button" class="tactical-btn-sm" id="btn-upload-folder" title="Selecciona directamente la carpeta descomprimida del viaje (lee automáticamente ruta.json, favoritos.json y fotos)">📂 Cargar Carpeta Completa</button>
                   <button type="button" class="tactical-btn-sm" id="btn-browse-folder" title="Conectar carpeta local o sincronizada por Google Drive en PC para listar y seleccionar backups">📁 Conectar Carpeta Drive</button>
@@ -622,6 +625,78 @@
           <div id="gdrive-files-container" class="hidden">
             <span class="meta-title" style="display: block; margin-bottom: 0.5rem;">📦 BACKUPS ENCONTRADOS EN TU DRIVE:</span>
             <div id="gdrive-files-list" class="photos-list" style="max-height: 180px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Importación Directa desde Google Fotos -->
+    <div id="gphotos-modal" class="photo-modal hidden">
+      <div class="photo-modal-backdrop" id="gphotos-modal-backdrop"></div>
+      <div class="photo-modal-content" style="max-width: 820px; max-height: 88vh; display: flex; flex-direction: column;">
+        <button class="modal-close-btn" id="gphotos-modal-close" title="Cerrar">&times;</button>
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.85rem; overflow-y: auto;">
+          <div class="sidebar-title">
+            <span class="icon">📸</span>
+            <h3>CONEXIÓN CON GOOGLE FOTOS</h3>
+          </div>
+          <p style="font-size: 0.76rem; color: var(--text-muted); line-height: 1.4; margin: 0;">
+            Conecta tu cuenta de Google Fotos para explorar tus recuerdos, seleccionar fotografías de tus viajes y ubicarlas automáticamente sobre el mapa y las rutas de BiTaVi.
+          </p>
+
+          <!-- Configuración de Client ID de Google Cloud -->
+          <div class="panel-section" style="background: rgba(8, 12, 20, 0.85); padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label style="font-size: 0.65rem; color: var(--text-dark); font-weight: 700;">CLIENT ID (GOOGLE CLOUD OAUTH 2.0):</label>
+              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style="font-size: 0.62rem; color: var(--accent-cyan); text-decoration: none;">Abrir Google Cloud Console ↗</a>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="text" id="gphotos-client-id" placeholder="ej. 123456789-xxxx.apps.googleusercontent.com" class="monospace" style="flex: 1; background: #070a12; border: 1px solid var(--border-color); color: #fff; padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.72rem;" />
+              <button id="btn-save-gphotos-creds" class="tactical-btn-sm" style="white-space: nowrap;">Guardar</button>
+            </div>
+            <span style="font-size: 0.60rem; color: var(--text-dark); display: block; margin-top: 3px;">
+              💡 Requiere habilitar "Google Photos Library API" en tu proyecto de Google Cloud Console.
+            </span>
+          </div>
+
+          <!-- Barra de Acciones de Conexión y Filtros -->
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button id="btn-gphotos-login" class="tactical-btn highlight-btn" style="flex: 1; min-width: 180px; justify-content: center; background: rgba(251, 188, 4, 0.18); border-color: #fbbc04; color: #fff;">
+              🔑 CONECTAR CON GOOGLE FOTOS
+            </button>
+            <div id="gphotos-nav-tabs" class="hidden" style="display: flex; gap: 0.35rem;">
+              <button id="btn-gphotos-tab-recent" class="tactical-btn-sm active" style="font-size: 0.68rem;">🖼️ Recientes</button>
+              <button id="btn-gphotos-tab-albums" class="tactical-btn-sm" style="font-size: 0.68rem;">📁 Álbumes</button>
+              <button id="btn-gphotos-tab-routedate" class="tactical-btn-sm" style="font-size: 0.68rem; border-color: var(--accent-cyan); color: var(--accent-cyan);" title="Filtrar fotos que coincidan con la fecha de la ruta activa">📅 Del Día de la Ruta</button>
+            </div>
+          </div>
+
+          <!-- Mensaje de Estado / Diagnóstico -->
+          <div id="gphotos-status-msg" class="monospace" style="font-size: 0.72rem; color: var(--accent-cyan); min-height: 1.2rem;"></div>
+
+          <!-- Contenedor de Álbumes -->
+          <div id="gphotos-albums-container" class="hidden" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <span class="meta-title" style="font-size: 0.68rem; color: var(--text-muted);">ÁLBUMES DISPONIBLES EN TU CUENTA:</span>
+            <div id="gphotos-albums-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.6rem; max-height: 220px; overflow-y: auto;"></div>
+          </div>
+
+          <!-- Contenedor y Cuadrícula de Fotos -->
+          <div id="gphotos-grid-wrapper" class="hidden" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(8, 12, 20, 0.6); padding: 0.4rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-color); flex-wrap: wrap; gap: 0.4rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.68rem; color: #fff; cursor: pointer;">
+                  <input type="checkbox" id="chk-gphotos-select-all" checked style="cursor: pointer;" />
+                  <span>Seleccionar Todas</span>
+                </label>
+                <span id="gphotos-selection-count" class="badge monospace" style="font-size: 0.65rem; color: var(--accent-cyan);">0 seleccionadas</span>
+              </div>
+              <button id="btn-import-selected-gphotos" class="tactical-btn-sm highlight-btn" style="border-color: var(--accent-emerald); color: var(--accent-emerald); background: rgba(16, 185, 129, 0.15); font-weight: 700; padding: 4px 10px;">
+                📥 Importar Seleccionadas a BiTaVi
+              </button>
+            </div>
+
+            <!-- Grilla visual con miniaturas -->
+            <div id="gphotos-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 0.5rem; max-height: 340px; overflow-y: auto; padding: 4px; background: rgba(0, 0, 0, 0.3); border-radius: 6px; border: 1px solid var(--border-dark);"></div>
           </div>
         </div>
       </div>
